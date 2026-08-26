@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    @apply bg-ink-void text-ivory font-body;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent text selection on UI chrome */
+    user-select: none;
+  }
+
+  /* Allow text selection inside editors and readable content */
+  .selectable {
+    user-select: text;
+  }
+}
+
+@layer components {
+  .ink-surface {
+    @apply bg-ink-deep border border-ink-border rounded-lg;
+  }
+}
