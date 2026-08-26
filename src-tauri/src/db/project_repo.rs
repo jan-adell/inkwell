@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use rusqlite::{params, Connection};
 
 use crate::error::{InkwellError, Result};
@@ -51,34 +49,6 @@ pub fn get(conn: &Connection, id: &str) -> Result<ProjectRow> {
     })
 }
 
-pub fn list(conn: &Connection) -> Result<Vec<ProjectRow>> {
-    let mut stmt = conn.prepare(
-        "SELECT id,name,description,created_at,updated_at,settings
-         FROM projects ORDER BY created_at ASC",
-    )?;
-    let rows = stmt.query_map([], row_to_project)?;
-    rows.map(|r| r.map_err(InkwellError::Database)).collect()
-}
-
-pub fn update_name(conn: &Connection, id: &str, name: &str) -> Result<ProjectRow> {
-    get(conn, id)?; // ensure exists
-    let now = chrono::Utc::now().to_rfc3339();
-    conn.execute(
-        "UPDATE projects SET name=?1,updated_at=?2 WHERE id=?3",
-        params![name, now, id],
-    )?;
-    get(conn, id)
-}
-
-pub fn update_settings(conn: &Connection, id: &str, settings_json: &str) -> Result<ProjectRow> {
-    get(conn, id)?;
-    let now = chrono::Utc::now().to_rfc3339();
-    conn.execute(
-        "UPDATE projects SET settings=?1,updated_at=?2 WHERE id=?3",
-        params![settings_json, now, id],
-    )?;
-    get(conn, id)
-}
 
 #[cfg(test)]
 mod tests {
@@ -101,23 +71,7 @@ mod tests {
         assert_eq!(get(&conn, &p.id).unwrap().id, p.id);
     }
 
-    #[test]
-    fn list_projects() {
-        let conn = test_conn();
-        create(&conn, "01A", "Alpha").unwrap();
-        create(&conn, "01B", "Beta").unwrap();
-        assert_eq!(list(&conn).unwrap().len(), 2);
-    }
-
-    #[test]
-    fn update_name() {
-        let conn = test_conn();
-        create(&conn, "01P", "Old").unwrap();
-        let p = super::update_name(&conn, "01P", "New").unwrap();
-        assert_eq!(p.name, "New");
-    }
-
-    #[test]
+#[test]
     fn get_not_found() {
         let conn = test_conn();
         let result = get(&conn, "nonexistent");

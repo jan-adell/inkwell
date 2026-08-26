@@ -22,11 +22,6 @@ pub enum InkwellError {
     #[error("Migration error: {0}")]
     Migration(String),
 
-    /// The project folder or meta.json is invalid or corrupt.
-    #[error("Invalid project: {0}")]
-    #[allow(dead_code)]
-    InvalidProject(String),
-
     /// A value that was required was not found.
     #[error("Not found: {0}")]
     NotFound(String),

@@ -4,7 +4,7 @@ use crate::error::{InkwellError, Result};
 use crate::models::document::{
     CreateDocumentRequest, Document, UpdateDocumentRequest, VALID_NODE_TYPES, VALID_STATUSES,
 };
-use crate::models::document_content::{DocumentContent, EMPTY_DOC_JSON};
+use crate::models::document_content::EMPTY_DOC_JSON;
 
 fn row_to_document(row: &rusqlite::Row) -> rusqlite::Result<Document> {
     Ok(Document {
@@ -177,29 +177,6 @@ pub fn delete(conn: &Connection, id: &str) -> Result<()> {
     Ok(())
 }
 
-#[allow(dead_code)]
-pub fn get_content(conn: &Connection, document_id: &str) -> Result<DocumentContent> {
-    conn.query_row(
-        "SELECT document_id,content_json,content_text,updated_at
-         FROM document_contents WHERE document_id=?1",
-        params![document_id],
-        |row| {
-            Ok(DocumentContent {
-                document_id: row.get(0)?,
-                content_json: row.get(1)?,
-                content_text: row.get(2)?,
-                updated_at: row.get(3)?,
-            })
-        },
-    )
-    .map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => {
-            InkwellError::NotFound(format!("Content for document '{document_id}' not found"))
-        }
-        other => InkwellError::Database(other),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -211,6 +188,19 @@ mod tests {
         ensure_migrations_table(&conn).unwrap();
         run_pending_migrations(&mut conn).unwrap();
         conn
+    }
+
+    struct DocumentContent {
+        content_json: String,
+    }
+
+    fn get_content(conn: &Connection, document_id: &str) -> crate::error::Result<DocumentContent> {
+        conn.query_row(
+            "SELECT content_json FROM document_contents WHERE document_id=?1",
+            params![document_id],
+            |row| Ok(DocumentContent { content_json: row.get(0)? }),
+        )
+        .map_err(crate::error::InkwellError::Database)
     }
 
     fn seed_project(conn: &Connection) -> String {

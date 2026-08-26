@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tauri::Manager;
 
-use crate::db::{self, migrations, verify_pragmas};
+use crate::db::{self, migrations, project_repo, verify_pragmas};
 use crate::error::InkwellError;
 use crate::models::ProjectMeta;
 use crate::state::AppState;
@@ -91,8 +91,14 @@ pub async fn initialize_core(app: tauri::AppHandle) -> Result<InitResult, Inkwel
     // --- Step 5 & 6: Initialize migrations table and run pending migrations ---
     let schema_version = migrations::run_pending_migrations(&mut conn)?;
 
-    // --- Step 7: Write/update meta.json ---
-    write_meta_json(&project_dir, schema_version)?;
+    // --- Step 7: Write/update meta.json and ensure project DB record exists ---
+    //
+    // meta.json is the authoritative source for the project ID (ULID). The DB
+    // `projects` row must match it — create it on first run, skip if present.
+    let project_id = write_meta_json(&project_dir, schema_version)?;
+    if project_repo::get(&conn, &project_id).is_err() {
+        project_repo::create(&conn, &project_id, "Default Project")?;
+    }
 
     // --- Step 8: Register AppState so CRUD commands can access the connection ---
     //
@@ -100,7 +106,7 @@ pub async fn initialize_core(app: tauri::AppHandle) -> Result<InitResult, Inkwel
     // On hot-reload in development, Tauri may call initialize_core again; the
     // try_state check prevents a double-manage panic.
     if app.try_state::<AppState>().is_none() {
-        app.manage(AppState::new(conn, project_dir));
+        app.manage(AppState::new(conn));
     }
 
     Ok(InitResult {
@@ -147,13 +153,12 @@ fn ensure_project_structure(project_dir: &Path) -> Result<(), InkwellError> {
 /// IMPORTANT: no absolute paths are stored in meta.json.
 /// All asset references inside the project use paths relative to the
 /// project folder root.
-fn write_meta_json(project_dir: &Path, schema_version: u32) -> Result<(), InkwellError> {
+fn write_meta_json(project_dir: &Path, schema_version: u32) -> Result<String, InkwellError> {
     let meta_path = project_dir.join("meta.json");
 
     // Only write if it doesn't exist yet, to avoid overwriting an
     // existing project_id (which must never change once set).
     if meta_path.exists() {
-        // Update schema version if it changed (e.g. after a migration).
         let existing = std::fs::read_to_string(&meta_path)?;
         let mut meta: serde_json::Value = serde_json::from_str(&existing)?;
 
@@ -164,7 +169,11 @@ fn write_meta_json(project_dir: &Path, schema_version: u32) -> Result<(), Inkwel
             std::fs::write(&meta_path, updated)?;
         }
 
-        return Ok(());
+        let project_id = meta["project_id"]
+            .as_str()
+            .ok_or_else(|| InkwellError::Migration("meta.json missing project_id".into()))?
+            .to_string();
+        return Ok(project_id);
     }
 
     // First time: generate a new project_id (ULID) and write full meta.json.
@@ -173,8 +182,8 @@ fn write_meta_json(project_dir: &Path, schema_version: u32) -> Result<(), Inkwel
 
     let meta = ProjectMeta {
         inkwell_schema: schema_version,
-        project_id,
-        project_name: "Default Project".into(), // overridden when user names their project
+        project_id: project_id.clone(),
+        project_name: "Default Project".into(),
         created_at: now,
         app_version: ProjectMeta::APP_VERSION.into(),
     };
@@ -182,5 +191,5 @@ fn write_meta_json(project_dir: &Path, schema_version: u32) -> Result<(), Inkwel
     let json = serde_json::to_string_pretty(&meta)?;
     std::fs::write(&meta_path, json)?;
 
-    Ok(())
+    Ok(project_id)
 }

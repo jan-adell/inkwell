@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 use rusqlite::Connection;
@@ -17,18 +16,12 @@ pub struct AppState {
     /// The open SQLite connection for the active project.
     /// Acquired by commands via `state.db.lock().unwrap_or_else(|e| e.into_inner())`.
     pub db: Mutex<Connection>,
-
-    /// Absolute path to the active .inkwell project folder.
-    /// Used by commands that need to resolve asset paths.
-    #[allow(dead_code)]
-    pub project_path: PathBuf,
 }
 
 impl AppState {
-    pub fn new(conn: Connection, project_path: PathBuf) -> Self {
+    pub fn new(conn: Connection) -> Self {
         Self {
             db: Mutex::new(conn),
-            project_path,
         }
     }
 }
