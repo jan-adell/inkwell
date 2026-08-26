@@ -49,7 +49,6 @@ pub fn get(conn: &Connection, id: &str) -> Result<ProjectRow> {
     })
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,7 +70,7 @@ mod tests {
         assert_eq!(get(&conn, &p.id).unwrap().id, p.id);
     }
 
-#[test]
+    #[test]
     fn get_not_found() {
         let conn = test_conn();
         let result = get(&conn, "nonexistent");

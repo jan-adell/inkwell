@@ -167,7 +167,10 @@ mod tests {
     fn run_pending_applies_all_migrations_and_returns_latest_version() {
         let mut conn = test_conn();
         let version = run_pending_migrations(&mut conn).unwrap();
-        assert_eq!(version, all_migrations().last().map(|m| m.version).unwrap_or(0));
+        assert_eq!(
+            version,
+            all_migrations().last().map(|m| m.version).unwrap_or(0)
+        );
     }
 
     #[test]

@@ -198,7 +198,11 @@ mod tests {
         conn.query_row(
             "SELECT content_json FROM document_contents WHERE document_id=?1",
             params![document_id],
-            |row| Ok(DocumentContent { content_json: row.get(0)? }),
+            |row| {
+                Ok(DocumentContent {
+                    content_json: row.get(0)?,
+                })
+            },
         )
         .map_err(crate::error::InkwellError::Database)
     }
