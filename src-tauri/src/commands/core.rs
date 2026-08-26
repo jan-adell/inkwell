@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use tauri::Manager;
 
@@ -122,9 +122,9 @@ pub async fn initialize_core(app: tauri::AppHandle) -> Result<InitResult, Inkwel
 ///
 /// The `project.db` file is created by SQLite on first open.
 /// The `meta.json` file is written by `write_meta_json`.
-fn ensure_project_structure(project_dir: &PathBuf) -> Result<(), InkwellError> {
+fn ensure_project_structure(project_dir: &Path) -> Result<(), InkwellError> {
     let dirs = [
-        project_dir.as_path(),
+        project_dir,
         &project_dir.join("assets/characters"),
         &project_dir.join("assets/maps"),
         &project_dir.join("assets/covers"),
@@ -147,7 +147,7 @@ fn ensure_project_structure(project_dir: &PathBuf) -> Result<(), InkwellError> {
 /// IMPORTANT: no absolute paths are stored in meta.json.
 /// All asset references inside the project use paths relative to the
 /// project folder root.
-fn write_meta_json(project_dir: &PathBuf, schema_version: u32) -> Result<(), InkwellError> {
+fn write_meta_json(project_dir: &Path, schema_version: u32) -> Result<(), InkwellError> {
     let meta_path = project_dir.join("meta.json");
 
     // Only write if it doesn't exist yet, to avoid overwriting an

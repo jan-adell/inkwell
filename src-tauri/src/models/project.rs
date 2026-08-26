@@ -30,6 +30,7 @@ pub struct ProjectMeta {
 
 impl ProjectMeta {
     /// The current schema version this build of Inkwell understands.
+    #[allow(dead_code)]
     pub const CURRENT_SCHEMA: u32 = 1;
 
     /// The app version string baked into this build.

@@ -66,6 +66,7 @@ pub fn set(conn: &Connection, req: &SetFieldValueRequest) -> Result<FieldValue> 
     let now = chrono::Utc::now().to_rfc3339();
 
     // Unpack value into the right column
+    #[allow(clippy::type_complexity)]
     let (vtext, vnumber, vboolean, vdate, vjson): (
         Option<&str>,
         Option<f64>,
@@ -129,7 +130,7 @@ fn get_by_id(conn: &Connection, id: &str) -> Result<FieldValue> {
         params![id],
         row_to_fv,
     )
-    .map_err(|e| InkwellError::Database(e))
+    .map_err(InkwellError::Database)
 }
 
 pub fn get_for_entity(conn: &Connection, entity_id: &str) -> Result<Vec<FieldValue>> {

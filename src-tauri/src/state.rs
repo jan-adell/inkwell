@@ -20,6 +20,7 @@ pub struct AppState {
 
     /// Absolute path to the active .inkwell project folder.
     /// Used by commands that need to resolve asset paths.
+    #[allow(dead_code)]
     pub project_path: PathBuf,
 }
 

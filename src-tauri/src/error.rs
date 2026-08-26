@@ -24,6 +24,7 @@ pub enum InkwellError {
 
     /// The project folder or meta.json is invalid or corrupt.
     #[error("Invalid project: {0}")]
+    #[allow(dead_code)]
     InvalidProject(String),
 
     /// A value that was required was not found.

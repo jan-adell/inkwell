@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// content_text: plain text extracted from content_json — used for FTS5.
 ///              Updated whenever content_json is saved.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct DocumentContent {
     pub document_id: String,
     pub content_json: String,

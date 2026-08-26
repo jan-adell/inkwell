@@ -11,7 +11,7 @@ pub mod relation_type_repo;
 use rusqlite::{Connection, OpenFlags};
 use std::path::Path;
 
-use crate::error::{InkwellError, Result};
+use crate::error::Result;
 
 /// Open (or create) the SQLite database at `db_path`.
 ///

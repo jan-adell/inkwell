@@ -177,6 +177,7 @@ pub fn delete(conn: &Connection, id: &str) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn get_content(conn: &Connection, document_id: &str) -> Result<DocumentContent> {
     conn.query_row(
         "SELECT document_id,content_json,content_text,updated_at

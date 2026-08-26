@@ -60,6 +60,7 @@ pub fn current_version(conn: &Connection) -> Result<u32> {
 /// 2. Execute the migration SQL.
 /// 3. Insert a record into schema_migrations.
 /// 4. Commit.
+///
 /// If any step fails, the transaction is rolled back and an error is returned.
 /// No further migrations are attempted after a failure.
 pub fn run_pending_migrations(conn: &mut Connection) -> Result<u32> {
