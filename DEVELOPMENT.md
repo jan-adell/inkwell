@@ -123,11 +123,22 @@ npm run tauri dev
 
 **Frontend only (no Tauri):**
 
-Runs the React app in a browser at `http://localhost:1420`. Any `invoke()` call will fail, so the splash screen will show an initialization error — expected behaviour.
+If you only need to work on UI — layouts, styles, component structure — you can run the React app directly in a browser without compiling any Rust. This starts in seconds and gives you full Vite hot-reload.
 
 ```bash
 npm run dev
 ```
+
+Open `http://localhost:1420` in your browser.
+
+> [!NOTE]
+> In this mode all calls to `invoke()` fail, so the splash screen shows an initialization error. This is expected — the Tauri backend is not running. Any UI that does not depend on IPC responses (layouts, styles, static components) works normally.
+
+**Workflow for frontend-only development:**
+
+1. Run `npm run dev` — the browser updates on every file save, no restart needed.
+2. Edit files under `src/` (components, pages, styles, store).
+3. When your UI changes are ready, run `npm run tauri dev` once to verify everything works end-to-end with the real backend before committing.
 
 ---
 
