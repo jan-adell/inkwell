@@ -2,8 +2,16 @@ use serde::{Deserialize, Serialize};
 
 /// Valid field types — mirrors the values accepted by the schema.
 pub const VALID_FIELD_TYPES: &[&str] = &[
-    "text", "textarea", "number", "boolean", "date",
-    "select", "multiselect", "entity_ref", "url", "color",
+    "text",
+    "textarea",
+    "number",
+    "boolean",
+    "date",
+    "select",
+    "multiselect",
+    "entity_ref",
+    "url",
+    "color",
 ];
 
 /// A custom field definition for an entity type.
@@ -15,10 +23,10 @@ pub struct FieldDefinition {
     pub name: String,
     pub label: String,
     pub field_type: String,
-    pub options: Option<String>,       // JSON array for select/multiselect
+    pub options: Option<String>, // JSON array for select/multiselect
     pub default_value: Option<String>,
     pub is_required: bool,
-    pub visibility: String,            // 'private' | 'beta' | 'public'
+    pub visibility: String, // 'private' | 'beta' | 'public'
     pub sort_order: i64,
     pub created_at: String,
     pub deleted_at: Option<String>,

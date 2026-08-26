@@ -2,8 +2,7 @@ use rusqlite::{params, Connection};
 
 use crate::error::{InkwellError, Result};
 use crate::models::field_definition::{
-    CreateFieldDefinitionRequest, FieldDefinition, UpdateFieldDefinitionRequest,
-    VALID_FIELD_TYPES,
+    CreateFieldDefinitionRequest, FieldDefinition, UpdateFieldDefinitionRequest, VALID_FIELD_TYPES,
 };
 
 fn row_to_fd(row: &rusqlite::Row) -> rusqlite::Result<FieldDefinition> {
@@ -51,8 +50,17 @@ pub fn create(conn: &Connection, req: &CreateFieldDefinitionRequest) -> Result<F
              is_required, visibility, sort_order, created_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
         params![
-            id, req.entity_type_id, req.name, req.label, req.field_type,
-            req.options, req.default_value, is_required, visibility, sort_order, now
+            id,
+            req.entity_type_id,
+            req.name,
+            req.label,
+            req.field_type,
+            req.options,
+            req.default_value,
+            is_required,
+            visibility,
+            sort_order,
+            now
         ],
     )
     .map_err(|e| {
@@ -117,7 +125,10 @@ pub fn update(
 
     let label = req.label.as_deref().unwrap_or(&current.label);
     let options = req.options.as_deref().or(current.options.as_deref());
-    let default_value = req.default_value.as_deref().or(current.default_value.as_deref());
+    let default_value = req
+        .default_value
+        .as_deref()
+        .or(current.default_value.as_deref());
     let is_required = req.is_required.unwrap_or(current.is_required) as i64;
     let visibility = req.visibility.as_deref().unwrap_or(&current.visibility);
     let sort_order = req.sort_order.unwrap_or(current.sort_order);
@@ -127,7 +138,15 @@ pub fn update(
          SET label=?1,options=?2,default_value=?3,is_required=?4,
              visibility=?5,sort_order=?6,created_at=created_at
          WHERE id=?7 AND deleted_at IS NULL",
-        params![label, options, default_value, is_required, visibility, sort_order, id],
+        params![
+            label,
+            options,
+            default_value,
+            is_required,
+            visibility,
+            sort_order,
+            id
+        ],
     )?;
     // Update updated_at — field_definitions has no updated_at column per schema,
     // so we just re-fetch.

@@ -48,13 +48,12 @@ pub async fn initialize_core(app: tauri::AppHandle) -> Result<InitResult, Inkwel
     //
     // Implementation 003+ will replace this with an explicit
     // "open/create project" flow where the user selects a .inkwell folder.
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| InkwellError::Filesystem(std::io::Error::new(
+    let app_data_dir = app.path().app_data_dir().map_err(|e| {
+        InkwellError::Filesystem(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             format!("Could not resolve app data directory: {e}"),
-        )))?;
+        ))
+    })?;
 
     // --- Step 2: Create project folder structure ---
     //
@@ -107,9 +106,7 @@ pub async fn initialize_core(app: tauri::AppHandle) -> Result<InitResult, Inkwel
     Ok(InitResult {
         ok: true,
         schema_version,
-        message: format!(
-            "Core initialized. Schema v{schema_version}. WAL active. FK enforced."
-        ),
+        message: format!("Core initialized. Schema v{schema_version}. WAL active. FK enforced."),
         pragma_status: Some(pragma_status),
     })
 }

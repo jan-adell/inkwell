@@ -94,8 +94,14 @@ pub fn create(
              notes,sort_order,created_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
         params![
-            id, project_id, req.source_entity_id, req.relation_type_id,
-            req.target_entity_id, req.notes, sort_order, now
+            id,
+            project_id,
+            req.source_entity_id,
+            req.relation_type_id,
+            req.target_entity_id,
+            req.notes,
+            sort_order,
+            now
         ],
     )
     .map_err(|e| {
@@ -196,19 +202,31 @@ mod tests {
         conn.execute("INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at) VALUES(?1,?2,?3,'Valthera','private',0,'2026-01-01','2026-01-01')", params![e2, pid, etid]).unwrap();
         conn.execute("INSERT INTO relation_types(id,project_id,name,label,is_system,created_at) VALUES(?1,?2,'vive_en','Vive en',0,'2026-01-01')", params![rtid, pid]).unwrap();
 
-        Fixture { pid, etid, e1, e2, rtid }
+        Fixture {
+            pid,
+            etid,
+            e1,
+            e2,
+            rtid,
+        }
     }
 
     #[test]
     fn create_and_get_relation() {
         let conn = test_conn();
         let f = setup(&conn);
-        let r = create(&conn, &f.pid, &CreateRelationRequest {
-            source_entity_id: f.e1.clone(),
-            relation_type_id: f.rtid.clone(),
-            target_entity_id: f.e2.clone(),
-            notes: None, sort_order: None,
-        }).unwrap();
+        let r = create(
+            &conn,
+            &f.pid,
+            &CreateRelationRequest {
+                source_entity_id: f.e1.clone(),
+                relation_type_id: f.rtid.clone(),
+                target_entity_id: f.e2.clone(),
+                notes: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
         assert_eq!(r.source_entity_id, f.e1);
         assert_eq!(r.target_entity_id, f.e2);
     }
@@ -221,7 +239,8 @@ mod tests {
             source_entity_id: f.e1.clone(),
             relation_type_id: f.rtid.clone(),
             target_entity_id: f.e2.clone(),
-            notes: None, sort_order: None,
+            notes: None,
+            sort_order: None,
         };
         create(&conn, &f.pid, &req()).unwrap();
         let result = create(&conn, &f.pid, &req());
@@ -232,12 +251,17 @@ mod tests {
     fn nonexistent_source_rejected() {
         let conn = test_conn();
         let f = setup(&conn);
-        let result = create(&conn, &f.pid, &CreateRelationRequest {
-            source_entity_id: "bad".into(),
-            relation_type_id: f.rtid.clone(),
-            target_entity_id: f.e2.clone(),
-            notes: None, sort_order: None,
-        });
+        let result = create(
+            &conn,
+            &f.pid,
+            &CreateRelationRequest {
+                source_entity_id: "bad".into(),
+                relation_type_id: f.rtid.clone(),
+                target_entity_id: f.e2.clone(),
+                notes: None,
+                sort_order: None,
+            },
+        );
         assert!(matches!(result, Err(InkwellError::Validation(_))));
     }
 
@@ -249,19 +273,26 @@ mod tests {
         conn.execute(
             "UPDATE relation_types SET allowed_source_types='{\"wrong-type\"}' WHERE id=?1",
             params![f.rtid],
-        ).unwrap();
+        )
+        .unwrap();
         // The JSON above is intentionally set to a JSON array with f.etid excluded
         // Use proper JSON:
         conn.execute(
             "UPDATE relation_types SET allowed_source_types='[\"other-type-id\"]' WHERE id=?1",
             params![f.rtid],
-        ).unwrap();
-        let result = create(&conn, &f.pid, &CreateRelationRequest {
-            source_entity_id: f.e1.clone(),
-            relation_type_id: f.rtid.clone(),
-            target_entity_id: f.e2.clone(),
-            notes: None, sort_order: None,
-        });
+        )
+        .unwrap();
+        let result = create(
+            &conn,
+            &f.pid,
+            &CreateRelationRequest {
+                source_entity_id: f.e1.clone(),
+                relation_type_id: f.rtid.clone(),
+                target_entity_id: f.e2.clone(),
+                notes: None,
+                sort_order: None,
+            },
+        );
         assert!(matches!(result, Err(InkwellError::Validation(_))));
     }
 
@@ -269,12 +300,18 @@ mod tests {
     fn incoming_and_outgoing_queries() {
         let conn = test_conn();
         let f = setup(&conn);
-        create(&conn, &f.pid, &CreateRelationRequest {
-            source_entity_id: f.e1.clone(),
-            relation_type_id: f.rtid.clone(),
-            target_entity_id: f.e2.clone(),
-            notes: None, sort_order: None,
-        }).unwrap();
+        create(
+            &conn,
+            &f.pid,
+            &CreateRelationRequest {
+                source_entity_id: f.e1.clone(),
+                relation_type_id: f.rtid.clone(),
+                target_entity_id: f.e2.clone(),
+                notes: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
 
         let outgoing = list_outgoing(&conn, &f.e1).unwrap();
         assert_eq!(outgoing.len(), 1);
@@ -289,12 +326,18 @@ mod tests {
     fn soft_delete_relation() {
         let conn = test_conn();
         let f = setup(&conn);
-        let r = create(&conn, &f.pid, &CreateRelationRequest {
-            source_entity_id: f.e1.clone(),
-            relation_type_id: f.rtid.clone(),
-            target_entity_id: f.e2.clone(),
-            notes: None, sort_order: None,
-        }).unwrap();
+        let r = create(
+            &conn,
+            &f.pid,
+            &CreateRelationRequest {
+                source_entity_id: f.e1.clone(),
+                relation_type_id: f.rtid.clone(),
+                target_entity_id: f.e2.clone(),
+                notes: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
         delete(&conn, &r.id).unwrap();
         assert!(list_outgoing(&conn, &f.e1).unwrap().is_empty());
     }

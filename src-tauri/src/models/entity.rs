@@ -9,8 +9,8 @@ pub struct Entity {
     pub entity_type_id: String,
     pub name: String,
     pub summary: Option<String>,
-    pub cover_image: Option<String>,   // relative path within assets/
-    pub visibility: String,            // 'private' | 'beta' | 'public'
+    pub cover_image: Option<String>, // relative path within assets/
+    pub visibility: String,          // 'private' | 'beta' | 'public'
     pub sort_order: i64,
     pub created_at: String,
     pub updated_at: String,

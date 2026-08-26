@@ -19,13 +19,11 @@ pub struct Migration {
 /// - Each migration is applied inside a transaction; failure = rollback.
 ///
 pub fn all_migrations() -> Vec<Migration> {
-    vec![
-        Migration {
-            version: 1,
-            name: "initial_schema",
-            sql: include_str!("migrations/001_initial_schema.sql"),
-        },
-    ]
+    vec![Migration {
+        version: 1,
+        name: "initial_schema",
+        sql: include_str!("migrations/001_initial_schema.sql"),
+    }]
 }
 
 /// Ensure the `schema_migrations` tracking table exists.

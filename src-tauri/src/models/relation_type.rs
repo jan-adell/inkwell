@@ -10,8 +10,8 @@ pub struct RelationType {
     pub label: String,
     pub inverse_name: Option<String>,
     pub inverse_label: Option<String>,
-    pub allowed_source_types: Option<String>,  // JSON: [ulid, …] or null
-    pub allowed_target_types: Option<String>,  // JSON: [ulid, …] or null
+    pub allowed_source_types: Option<String>, // JSON: [ulid, …] or null
+    pub allowed_target_types: Option<String>, // JSON: [ulid, …] or null
     pub color: Option<String>,
     pub is_system: bool,
     pub created_at: String,

@@ -20,8 +20,10 @@ fn row_to_fv(row: &rusqlite::Row) -> rusqlite::Result<FieldValue> {
 /// Validate that the supplied value variant matches the field's declared type.
 fn validate_value_for_type(field_type: &str, value: &FieldValueInput) -> Result<()> {
     let ok = match (field_type, value) {
-        ("text" | "textarea" | "select" | "url" | "color" | "entity_ref",
-         FieldValueInput::Text(_)) => true,
+        (
+            "text" | "textarea" | "select" | "url" | "color" | "entity_ref",
+            FieldValueInput::Text(_),
+        ) => true,
         ("number", FieldValueInput::Number(_)) => true,
         ("boolean", FieldValueInput::Boolean(_)) => true,
         ("date", FieldValueInput::Date(d)) => {
@@ -53,10 +55,9 @@ pub fn set(conn: &Connection, req: &SetFieldValueRequest) -> Result<FieldValue> 
             |row| row.get(0),
         )
         .map_err(|e| match e {
-            rusqlite::Error::QueryReturnedNoRows => InkwellError::NotFound(format!(
-                "FieldDefinition '{}' not found",
-                req.field_def_id
-            )),
+            rusqlite::Error::QueryReturnedNoRows => {
+                InkwellError::NotFound(format!("FieldDefinition '{}' not found", req.field_def_id))
+            }
             other => InkwellError::Database(other),
         })?;
 
@@ -66,13 +67,17 @@ pub fn set(conn: &Connection, req: &SetFieldValueRequest) -> Result<FieldValue> 
 
     // Unpack value into the right column
     let (vtext, vnumber, vboolean, vdate, vjson): (
-        Option<&str>, Option<f64>, Option<i64>, Option<&str>, Option<&str>,
+        Option<&str>,
+        Option<f64>,
+        Option<i64>,
+        Option<&str>,
+        Option<&str>,
     ) = match &req.value {
-        FieldValueInput::Text(s)    => (Some(s.as_str()), None, None, None, None),
-        FieldValueInput::Number(n)  => (None, Some(*n), None, None, None),
+        FieldValueInput::Text(s) => (Some(s.as_str()), None, None, None, None),
+        FieldValueInput::Number(n) => (None, Some(*n), None, None, None),
         FieldValueInput::Boolean(b) => (None, None, Some(*b as i64), None, None),
-        FieldValueInput::Date(d)    => (None, None, None, Some(d.as_str()), None),
-        FieldValueInput::Json(j)    => (None, None, None, None, Some(j.as_str())),
+        FieldValueInput::Date(d) => (None, None, None, Some(d.as_str()), None),
+        FieldValueInput::Json(j) => (None, None, None, None, Some(j.as_str())),
     };
 
     // Check if a row already exists for this (entity_id, field_def_id)
@@ -101,8 +106,15 @@ pub fn set(conn: &Connection, req: &SetFieldValueRequest) -> Result<FieldValue> 
                  value_boolean,value_date,value_json,updated_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
             params![
-                id, req.entity_id, req.field_def_id,
-                vtext, vnumber, vboolean, vdate, vjson, now
+                id,
+                req.entity_id,
+                req.field_def_id,
+                vtext,
+                vnumber,
+                vboolean,
+                vdate,
+                vjson,
+                now
             ],
         )?;
         get_by_id(conn, &id)
@@ -181,11 +193,15 @@ mod tests {
         let conn = test_conn();
         let (_, etid, eid) = seed(&conn);
         let fid = seed_field(&conn, &etid, "nombre", "text");
-        let fv = set(&conn, &SetFieldValueRequest {
-            entity_id: eid.clone(),
-            field_def_id: fid.clone(),
-            value: FieldValueInput::Text("Kael".into()),
-        }).unwrap();
+        let fv = set(
+            &conn,
+            &SetFieldValueRequest {
+                entity_id: eid.clone(),
+                field_def_id: fid.clone(),
+                value: FieldValueInput::Text("Kael".into()),
+            },
+        )
+        .unwrap();
         assert_eq!(fv.value_text.as_deref(), Some("Kael"));
     }
 
@@ -194,14 +210,24 @@ mod tests {
         let conn = test_conn();
         let (_, etid, eid) = seed(&conn);
         let fid = seed_field(&conn, &etid, "edad", "number");
-        set(&conn, &SetFieldValueRequest {
-            entity_id: eid.clone(), field_def_id: fid.clone(),
-            value: FieldValueInput::Number(25.0),
-        }).unwrap();
-        let fv = set(&conn, &SetFieldValueRequest {
-            entity_id: eid.clone(), field_def_id: fid.clone(),
-            value: FieldValueInput::Number(30.0),
-        }).unwrap();
+        set(
+            &conn,
+            &SetFieldValueRequest {
+                entity_id: eid.clone(),
+                field_def_id: fid.clone(),
+                value: FieldValueInput::Number(25.0),
+            },
+        )
+        .unwrap();
+        let fv = set(
+            &conn,
+            &SetFieldValueRequest {
+                entity_id: eid.clone(),
+                field_def_id: fid.clone(),
+                value: FieldValueInput::Number(30.0),
+            },
+        )
+        .unwrap();
         assert_eq!(fv.value_number, Some(30.0));
         // Only one row
         assert_eq!(get_for_entity(&conn, &eid).unwrap().len(), 1);
@@ -212,10 +238,14 @@ mod tests {
         let conn = test_conn();
         let (_, etid, eid) = seed(&conn);
         let fid = seed_field(&conn, &etid, "edad", "number");
-        let result = set(&conn, &SetFieldValueRequest {
-            entity_id: eid.clone(), field_def_id: fid,
-            value: FieldValueInput::Text("veintisiete".into()),
-        });
+        let result = set(
+            &conn,
+            &SetFieldValueRequest {
+                entity_id: eid.clone(),
+                field_def_id: fid,
+                value: FieldValueInput::Text("veintisiete".into()),
+            },
+        );
         assert!(matches!(result, Err(InkwellError::Validation(_))));
     }
 
@@ -224,10 +254,15 @@ mod tests {
         let conn = test_conn();
         let (_, etid, eid) = seed(&conn);
         let fid = seed_field(&conn, &etid, "bio", "textarea");
-        set(&conn, &SetFieldValueRequest {
-            entity_id: eid.clone(), field_def_id: fid.clone(),
-            value: FieldValueInput::Text("Un guerrero".into()),
-        }).unwrap();
+        set(
+            &conn,
+            &SetFieldValueRequest {
+                entity_id: eid.clone(),
+                field_def_id: fid.clone(),
+                value: FieldValueInput::Text("Un guerrero".into()),
+            },
+        )
+        .unwrap();
         assert_eq!(get_for_entity(&conn, &eid).unwrap().len(), 1);
         delete(&conn, &eid, &fid).unwrap();
         assert_eq!(get_for_entity(&conn, &eid).unwrap().len(), 0);
@@ -239,15 +274,24 @@ mod tests {
         let (_, etid, eid) = seed(&conn);
         let fid = seed_field(&conn, &etid, "tags", "multiselect");
         // Valid JSON array
-        set(&conn, &SetFieldValueRequest {
-            entity_id: eid.clone(), field_def_id: fid.clone(),
-            value: FieldValueInput::Json(r#"["guerrero","explorador"]"#.into()),
-        }).unwrap();
+        set(
+            &conn,
+            &SetFieldValueRequest {
+                entity_id: eid.clone(),
+                field_def_id: fid.clone(),
+                value: FieldValueInput::Json(r#"["guerrero","explorador"]"#.into()),
+            },
+        )
+        .unwrap();
         // Invalid JSON
-        let bad = set(&conn, &SetFieldValueRequest {
-            entity_id: eid.clone(), field_def_id: fid.clone(),
-            value: FieldValueInput::Json("not json".into()),
-        });
+        let bad = set(
+            &conn,
+            &SetFieldValueRequest {
+                entity_id: eid.clone(),
+                field_def_id: fid.clone(),
+                value: FieldValueInput::Json("not json".into()),
+            },
+        );
         assert!(matches!(bad, Err(InkwellError::Validation(_))));
     }
 }

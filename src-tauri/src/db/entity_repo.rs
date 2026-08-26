@@ -30,11 +30,13 @@ fn validate_visibility(v: &str) -> Result<()> {
 
 pub fn create(conn: &Connection, project_id: &str, req: &CreateEntityRequest) -> Result<Entity> {
     // Verify the entity_type exists and belongs to this project
-    let type_exists: bool = conn.query_row(
-        "SELECT 1 FROM entity_types WHERE id=?1 AND project_id=?2 AND deleted_at IS NULL",
-        params![req.entity_type_id, project_id],
-        |_| Ok(true),
-    ).unwrap_or(false);
+    let type_exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM entity_types WHERE id=?1 AND project_id=?2 AND deleted_at IS NULL",
+            params![req.entity_type_id, project_id],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
 
     if !type_exists {
         return Err(InkwellError::Validation(format!(
@@ -56,8 +58,14 @@ pub fn create(conn: &Connection, project_id: &str, req: &CreateEntityRequest) ->
              visibility, sort_order, created_at, updated_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8)",
         params![
-            id, project_id, req.entity_type_id, req.name,
-            req.summary, visibility, sort_order, now
+            id,
+            project_id,
+            req.entity_type_id,
+            req.name,
+            req.summary,
+            visibility,
+            sort_order,
+            now
         ],
     )?;
 
@@ -118,7 +126,10 @@ pub fn update(conn: &Connection, id: &str, req: &UpdateEntityRequest) -> Result<
 
     let name = req.name.as_deref().unwrap_or(&current.name);
     let summary = req.summary.as_deref().or(current.summary.as_deref());
-    let cover_image = req.cover_image.as_deref().or(current.cover_image.as_deref());
+    let cover_image = req
+        .cover_image
+        .as_deref()
+        .or(current.cover_image.as_deref());
     let visibility = req.visibility.as_deref().unwrap_or(&current.visibility);
     let sort_order = req.sort_order.unwrap_or(current.sort_order);
 
@@ -174,13 +185,18 @@ mod tests {
     fn create_and_get() {
         let conn = test_conn();
         let (pid, etid) = seed(&conn);
-        let e = create(&conn, &pid, &CreateEntityRequest {
-            entity_type_id: etid.clone(),
-            name: "Kael".into(),
-            summary: None,
-            visibility: None,
-            sort_order: None,
-        }).unwrap();
+        let e = create(
+            &conn,
+            &pid,
+            &CreateEntityRequest {
+                entity_type_id: etid.clone(),
+                name: "Kael".into(),
+                summary: None,
+                visibility: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
         assert_eq!(e.name, "Kael");
         assert_eq!(e.visibility, "private");
         assert_eq!(get(&conn, &e.id).unwrap().id, e.id);
@@ -190,11 +206,17 @@ mod tests {
     fn invalid_entity_type_rejected() {
         let conn = test_conn();
         let (pid, _) = seed(&conn);
-        let result = create(&conn, &pid, &CreateEntityRequest {
-            entity_type_id: "bad-type".into(),
-            name: "X".into(),
-            summary: None, visibility: None, sort_order: None,
-        });
+        let result = create(
+            &conn,
+            &pid,
+            &CreateEntityRequest {
+                entity_type_id: "bad-type".into(),
+                name: "X".into(),
+                summary: None,
+                visibility: None,
+                sort_order: None,
+            },
+        );
         assert!(matches!(result, Err(InkwellError::Validation(_))));
     }
 
@@ -208,14 +230,30 @@ mod tests {
              VALUES(?1,?2,'Lugar',0,0,'2026-01-01','2026-01-01')",
             params![etid2, pid],
         ).unwrap();
-        create(&conn, &pid, &CreateEntityRequest {
-            entity_type_id: etid.clone(), name: "Kael".into(),
-            summary: None, visibility: None, sort_order: None,
-        }).unwrap();
-        create(&conn, &pid, &CreateEntityRequest {
-            entity_type_id: etid2.clone(), name: "Valthera".into(),
-            summary: None, visibility: None, sort_order: None,
-        }).unwrap();
+        create(
+            &conn,
+            &pid,
+            &CreateEntityRequest {
+                entity_type_id: etid.clone(),
+                name: "Kael".into(),
+                summary: None,
+                visibility: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
+        create(
+            &conn,
+            &pid,
+            &CreateEntityRequest {
+                entity_type_id: etid2.clone(),
+                name: "Valthera".into(),
+                summary: None,
+                visibility: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
 
         let chars = list_by_type(&conn, &pid, &etid).unwrap();
         assert_eq!(chars.len(), 1);
@@ -226,10 +264,18 @@ mod tests {
     fn soft_delete() {
         let conn = test_conn();
         let (pid, etid) = seed(&conn);
-        let e = create(&conn, &pid, &CreateEntityRequest {
-            entity_type_id: etid, name: "Arven".into(),
-            summary: None, visibility: None, sort_order: None,
-        }).unwrap();
+        let e = create(
+            &conn,
+            &pid,
+            &CreateEntityRequest {
+                entity_type_id: etid,
+                name: "Arven".into(),
+                summary: None,
+                visibility: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
         delete(&conn, &e.id).unwrap();
         assert!(get(&conn, &e.id).unwrap().deleted_at.is_some());
         assert!(list(&conn, &pid).unwrap().is_empty());

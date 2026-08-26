@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-pub const VALID_NODE_TYPES: &[&str] =
-    &["novel", "part", "chapter", "scene", "note", "document", "folder"];
+pub const VALID_NODE_TYPES: &[&str] = &[
+    "novel", "part", "chapter", "scene", "note", "document", "folder",
+];
 
 pub const VALID_STATUSES: &[&str] = &["idea", "draft", "revision", "final"];
 

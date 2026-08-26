@@ -24,8 +24,8 @@ pub enum FieldValueInput {
     Text(String),
     Number(f64),
     Boolean(bool),
-    Date(String),       // ISO 8601
-    Json(String),       // raw JSON string
+    Date(String), // ISO 8601
+    Json(String), // raw JSON string
 }
 
 /// Request to set (upsert) a field value on an entity.

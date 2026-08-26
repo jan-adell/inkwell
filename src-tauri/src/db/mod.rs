@@ -1,9 +1,9 @@
-pub mod migrations;
 pub mod document_repo;
 pub mod entity_repo;
 pub mod entity_type_repo;
 pub mod field_definition_repo;
 pub mod field_value_repo;
+pub mod migrations;
 pub mod project_repo;
 pub mod relation_repo;
 pub mod relation_type_repo;
@@ -56,11 +56,9 @@ fn configure_connection(conn: &Connection) -> Result<()> {
 /// Verify that the connection pragmas are applied as expected.
 /// Used in tests and during initialization diagnostics.
 pub fn verify_pragmas(conn: &Connection) -> Result<PragmaStatus> {
-    let journal_mode: String =
-        conn.query_row("PRAGMA journal_mode;", [], |row| row.get(0))?;
+    let journal_mode: String = conn.query_row("PRAGMA journal_mode;", [], |row| row.get(0))?;
 
-    let foreign_keys: i64 =
-        conn.query_row("PRAGMA foreign_keys;", [], |row| row.get(0))?;
+    let foreign_keys: i64 = conn.query_row("PRAGMA foreign_keys;", [], |row| row.get(0))?;
 
     Ok(PragmaStatus {
         wal_enabled: journal_mode.to_lowercase() == "wal",

@@ -11,16 +11,19 @@ pub async fn create_relation(
     project_id: String,
     req: CreateRelationRequest,
 ) -> Result<Relation> {
-    let conn = state.db.lock().map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     relation_repo::create(&conn, &project_id, &req)
 }
 
 #[tauri::command]
-pub async fn delete_relation(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<()> {
-    let conn = state.db.lock().map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+pub async fn delete_relation(state: State<'_, AppState>, id: String) -> Result<()> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     relation_repo::delete(&conn, &id)
 }
 
@@ -29,7 +32,10 @@ pub async fn list_outgoing_relations(
     state: State<'_, AppState>,
     entity_id: String,
 ) -> Result<Vec<Relation>> {
-    let conn = state.db.lock().map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     relation_repo::list_outgoing(&conn, &entity_id)
 }
 
@@ -38,6 +44,9 @@ pub async fn list_incoming_relations(
     state: State<'_, AppState>,
     entity_id: String,
 ) -> Result<Vec<Relation>> {
-    let conn = state.db.lock().map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     relation_repo::list_incoming(&conn, &entity_id)
 }

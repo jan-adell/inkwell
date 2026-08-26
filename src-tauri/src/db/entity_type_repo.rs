@@ -1,9 +1,7 @@
 use rusqlite::{params, Connection};
 
 use crate::error::{InkwellError, Result};
-use crate::models::entity_type::{
-    CreateEntityTypeRequest, EntityType, UpdateEntityTypeRequest,
-};
+use crate::models::entity_type::{CreateEntityTypeRequest, EntityType, UpdateEntityTypeRequest};
 
 fn row_to_entity_type(row: &rusqlite::Row) -> rusqlite::Result<EntityType> {
     Ok(EntityType {
@@ -37,8 +35,15 @@ pub fn create(
              is_system, sort_order, created_at, updated_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,0,?8,?9,?9)",
         params![
-            id, project_id, req.name, req.name_plural, req.icon,
-            req.color, req.description, sort_order, now
+            id,
+            project_id,
+            req.name,
+            req.name_plural,
+            req.icon,
+            req.color,
+            req.description,
+            sort_order,
+            now
         ],
     )?;
 
@@ -74,21 +79,23 @@ pub fn list(conn: &Connection, project_id: &str) -> Result<Vec<EntityType>> {
     rows.map(|r| r.map_err(InkwellError::Database)).collect()
 }
 
-pub fn update(
-    conn: &Connection,
-    id: &str,
-    req: &UpdateEntityTypeRequest,
-) -> Result<EntityType> {
+pub fn update(conn: &Connection, id: &str, req: &UpdateEntityTypeRequest) -> Result<EntityType> {
     let now = chrono::Utc::now().to_rfc3339();
 
     // Fetch current to apply partial update
     let current = get(conn, id)?;
 
     let name = req.name.as_deref().unwrap_or(&current.name);
-    let name_plural = req.name_plural.as_deref().or(current.name_plural.as_deref());
+    let name_plural = req
+        .name_plural
+        .as_deref()
+        .or(current.name_plural.as_deref());
     let icon = req.icon.as_deref().or(current.icon.as_deref());
     let color = req.color.as_deref().or(current.color.as_deref());
-    let description = req.description.as_deref().or(current.description.as_deref());
+    let description = req
+        .description
+        .as_deref()
+        .or(current.description.as_deref());
     let sort_order = req.sort_order.unwrap_or(current.sort_order);
 
     conn.execute(
@@ -96,7 +103,16 @@ pub fn update(
          SET name=?1, name_plural=?2, icon=?3, color=?4, description=?5,
              sort_order=?6, updated_at=?7
          WHERE id=?8 AND deleted_at IS NULL",
-        params![name, name_plural, icon, color, description, sort_order, now, id],
+        params![
+            name,
+            name_plural,
+            icon,
+            color,
+            description,
+            sort_order,
+            now,
+            id
+        ],
     )?;
 
     get(conn, id)
@@ -168,8 +184,12 @@ mod tests {
         let conn = test_conn();
         let pid = seed_project(&conn);
         let req = |name: &str| CreateEntityTypeRequest {
-            name: name.into(), name_plural: None, icon: None,
-            color: None, description: None, sort_order: None,
+            name: name.into(),
+            name_plural: None,
+            icon: None,
+            color: None,
+            description: None,
+            sort_order: None,
         };
         create(&conn, &pid, &req("Lugar")).unwrap();
         let et2 = create(&conn, &pid, &req("Objeto")).unwrap();
@@ -184,16 +204,33 @@ mod tests {
     fn update_partial() {
         let conn = test_conn();
         let pid = seed_project(&conn);
-        let et = create(&conn, &pid, &CreateEntityTypeRequest {
-            name: "Criatura".into(), name_plural: None, icon: None,
-            color: None, description: None, sort_order: None,
-        }).unwrap();
+        let et = create(
+            &conn,
+            &pid,
+            &CreateEntityTypeRequest {
+                name: "Criatura".into(),
+                name_plural: None,
+                icon: None,
+                color: None,
+                description: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
 
-        let updated = update(&conn, &et.id, &UpdateEntityTypeRequest {
-            name: Some("Monstruo".into()),
-            name_plural: None, icon: None, color: None,
-            description: None, sort_order: None,
-        }).unwrap();
+        let updated = update(
+            &conn,
+            &et.id,
+            &UpdateEntityTypeRequest {
+                name: Some("Monstruo".into()),
+                name_plural: None,
+                icon: None,
+                color: None,
+                description: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
         assert_eq!(updated.name, "Monstruo");
     }
 
@@ -201,10 +238,19 @@ mod tests {
     fn soft_delete() {
         let conn = test_conn();
         let pid = seed_project(&conn);
-        let et = create(&conn, &pid, &CreateEntityTypeRequest {
-            name: "Facción".into(), name_plural: None, icon: None,
-            color: None, description: None, sort_order: None,
-        }).unwrap();
+        let et = create(
+            &conn,
+            &pid,
+            &CreateEntityTypeRequest {
+                name: "Facción".into(),
+                name_plural: None,
+                icon: None,
+                color: None,
+                description: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
         delete(&conn, &et.id).unwrap();
 
         let fetched = get(&conn, &et.id).unwrap();

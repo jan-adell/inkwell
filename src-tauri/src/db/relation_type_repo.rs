@@ -36,10 +36,16 @@ pub fn create(
              allowed_source_types,allowed_target_types,color,is_system,created_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,0,?10)",
         params![
-            id, project_id, req.name, req.label,
-            req.inverse_name, req.inverse_label,
-            req.allowed_source_types, req.allowed_target_types,
-            req.color, now
+            id,
+            project_id,
+            req.name,
+            req.label,
+            req.inverse_name,
+            req.inverse_label,
+            req.allowed_source_types,
+            req.allowed_target_types,
+            req.color,
+            now
         ],
     )?;
     get(conn, &id)
@@ -83,11 +89,21 @@ pub fn update(
     let current = get(conn, id)?;
     let name = req.name.as_deref().unwrap_or(&current.name);
     let label = req.label.as_deref().unwrap_or(&current.label);
-    let inverse_name = req.inverse_name.as_deref().or(current.inverse_name.as_deref());
-    let inverse_label = req.inverse_label.as_deref().or(current.inverse_label.as_deref());
-    let allowed_source = req.allowed_source_types.as_deref()
+    let inverse_name = req
+        .inverse_name
+        .as_deref()
+        .or(current.inverse_name.as_deref());
+    let inverse_label = req
+        .inverse_label
+        .as_deref()
+        .or(current.inverse_label.as_deref());
+    let allowed_source = req
+        .allowed_source_types
+        .as_deref()
         .or(current.allowed_source_types.as_deref());
-    let allowed_target = req.allowed_target_types.as_deref()
+    let allowed_target = req
+        .allowed_target_types
+        .as_deref()
         .or(current.allowed_target_types.as_deref());
     let color = req.color.as_deref().or(current.color.as_deref());
 
@@ -96,8 +112,16 @@ pub fn update(
          SET name=?1,label=?2,inverse_name=?3,inverse_label=?4,
              allowed_source_types=?5,allowed_target_types=?6,color=?7
          WHERE id=?8 AND deleted_at IS NULL",
-        params![name, label, inverse_name, inverse_label,
-                allowed_source, allowed_target, color, id],
+        params![
+            name,
+            label,
+            inverse_name,
+            inverse_label,
+            allowed_source,
+            allowed_target,
+            color,
+            id
+        ],
     )?;
     get(conn, id)
 }

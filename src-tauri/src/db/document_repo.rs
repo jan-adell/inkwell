@@ -2,8 +2,7 @@ use rusqlite::{params, Connection};
 
 use crate::error::{InkwellError, Result};
 use crate::models::document::{
-    CreateDocumentRequest, Document, UpdateDocumentRequest,
-    VALID_NODE_TYPES, VALID_STATUSES,
+    CreateDocumentRequest, Document, UpdateDocumentRequest, VALID_NODE_TYPES, VALID_STATUSES,
 };
 use crate::models::document_content::{DocumentContent, EMPTY_DOC_JSON};
 
@@ -77,8 +76,15 @@ pub fn create(
              word_count,sort_order,is_included,created_at,updated_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,0,?8,1,?9,?9)",
         params![
-            id, project_id, req.parent_id, req.node_type,
-            req.title, req.synopsis, status, sort_order, now
+            id,
+            project_id,
+            req.parent_id,
+            req.node_type,
+            req.title,
+            req.synopsis,
+            status,
+            sort_order,
+            now
         ],
     )?;
 
@@ -176,12 +182,14 @@ pub fn get_content(conn: &Connection, document_id: &str) -> Result<DocumentConte
         "SELECT document_id,content_json,content_text,updated_at
          FROM document_contents WHERE document_id=?1",
         params![document_id],
-        |row| Ok(DocumentContent {
-            document_id: row.get(0)?,
-            content_json: row.get(1)?,
-            content_text: row.get(2)?,
-            updated_at: row.get(3)?,
-        }),
+        |row| {
+            Ok(DocumentContent {
+                document_id: row.get(0)?,
+                content_json: row.get(1)?,
+                content_text: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        },
     )
     .map_err(|e| match e {
         rusqlite::Error::QueryReturnedNoRows => {
@@ -259,8 +267,18 @@ mod tests {
         let conn = test_conn();
         let pid = seed_project(&conn);
         let novel = create(&conn, &pid, &make_req("novel", "Novel", None)).unwrap();
-        let ch1 = create(&conn, &pid, &make_req("chapter", "Ch1", Some(novel.id.clone()))).unwrap();
-        let ch2 = create(&conn, &pid, &make_req("chapter", "Ch2", Some(novel.id.clone()))).unwrap();
+        let ch1 = create(
+            &conn,
+            &pid,
+            &make_req("chapter", "Ch1", Some(novel.id.clone())),
+        )
+        .unwrap();
+        let ch2 = create(
+            &conn,
+            &pid,
+            &make_req("chapter", "Ch2", Some(novel.id.clone())),
+        )
+        .unwrap();
 
         let children = list_children(&conn, &novel.id).unwrap();
         assert_eq!(children.len(), 2);
@@ -293,20 +311,28 @@ mod tests {
         let pid = seed_project(&conn);
 
         // Force a failure by using a nonexistent parent_id
-        let result = create(&conn, &pid, &CreateDocumentRequest {
-            parent_id: Some("nonexistent-parent".into()),
-            node_type: "chapter".into(),
-            title: "Orphan".into(),
-            synopsis: None, status: None, sort_order: None,
-        });
+        let result = create(
+            &conn,
+            &pid,
+            &CreateDocumentRequest {
+                parent_id: Some("nonexistent-parent".into()),
+                node_type: "chapter".into(),
+                title: "Orphan".into(),
+                synopsis: None,
+                status: None,
+                sort_order: None,
+            },
+        );
         assert!(result.is_err());
 
         // No document row should exist
-        let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM documents WHERE title='Orphan'",
-            [],
-            |row| row.get(0),
-        ).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM documents WHERE title='Orphan'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
         assert_eq!(count, 0);
     }
 }
