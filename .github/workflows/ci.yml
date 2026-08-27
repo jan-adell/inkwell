@@ -18,6 +18,7 @@ jobs:
 
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm test
 
   # ── Rust: format + clippy + tests ────────────────────────────────────────────
   rust:
