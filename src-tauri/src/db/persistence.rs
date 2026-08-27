@@ -39,7 +39,7 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
         ensure_migrations_table(&conn).unwrap();
-        run_pending_migrations(&conn).unwrap();
+        run_pending_migrations(&mut conn).unwrap();
         conn
     }
 

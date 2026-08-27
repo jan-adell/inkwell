@@ -1,14 +1,9 @@
-use std::path::Path;
 use rusqlite::{params, Connection};
 
-use crate::error::{InkwellError, Result};
-
-/// Extended document helpers that include blob_path-aware updates.
-
-use crate::db::migrations::{ensure_migrations_table, run_pending_migrations};
+use crate::error::Result;
 
 pub fn update_document_content_blob(
-    conn: &Connection,
+    conn: &mut Connection,
     document_id: &str,
     content_text: &str,
     blob_path: Option<&str>,
@@ -35,35 +30,41 @@ pub fn update_document_content_blob(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::migrations::{ensure_migrations_table, run_pending_migrations};
+    use crate::models::document::CreateDocumentRequest;
     use rusqlite::Connection;
 
     fn test_conn() -> Connection {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
         ensure_migrations_table(&conn).unwrap();
-        run_pending_migrations(&conn).unwrap();
+        run_pending_migrations(&mut conn).unwrap();
         conn
     }
 
     #[test]
     fn update_content_blob_roundtrip() {
-        let conn = test_conn();
+        let mut conn = test_conn();
 
-        // create project & document rows via existing APIs
         crate::db::project_repo::create(&conn, "proj-1", "P").unwrap();
-        crate::db::documents::create(&conn, "doc-1", "proj-1", None, "chapter", "Title").unwrap();
-
-        // insert document_contents
-        conn.execute(
-            "INSERT INTO document_contents(document_id, content_json, content_text, updated_at) VALUES(?1, ?2, ?3, ?4)",
-            params!["doc-1", "{}", "hello world", chrono::Utc::now().to_rfc3339()],
+        let doc = crate::db::document_repo::create(
+            &conn,
+            "proj-1",
+            &CreateDocumentRequest {
+                parent_id: None,
+                node_type: "chapter".into(),
+                title: "Title".into(),
+                synopsis: None,
+                status: None,
+                sort_order: None,
+            },
         )
         .unwrap();
 
-        update_document_content_blob(&conn, "doc-1", "hello updated", Some("content/documents/doc-1.json")).unwrap();
+        update_document_content_blob(&mut conn, &doc.id, "hello updated", Some("content/documents/doc.json")).unwrap();
 
         let text: String = conn
-            .query_row("SELECT content_text FROM document_contents WHERE document_id = ?1", params!["doc-1"], |r| r.get(0))
+            .query_row("SELECT content_text FROM document_contents WHERE document_id = ?1", params![doc.id], |r| r.get(0))
             .unwrap();
 
         assert_eq!(text, "hello updated");

@@ -50,7 +50,7 @@ pub fn write_blob(project_dir: &Path, relative_path: &Path, content: &str) -> Re
         fs::create_dir_all(parent)?;
     }
 
-    let mut tmp = full.with_extension("tmp");
+    let tmp = full.with_extension("tmp");
     {
         let mut f = File::create(&tmp)?;
         f.write_all(content.as_bytes())?;

@@ -35,10 +35,10 @@ mod tests {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("test.db");
 
-        let conn = ConnectionManager::open(&db_path).expect("open database");
+        let mut conn = ConnectionManager::open(&db_path).expect("open database");
         // Ensure migrations run cleanly (similar to initialize_core path)
         ensure_migrations_table(&conn).unwrap();
-        run_pending_migrations(&conn).unwrap();
+        run_pending_migrations(&mut conn).unwrap();
 
         let status = ConnectionManager::verify(&conn).expect("verify pragmas");
         assert!(status.wal_enabled, "WAL should be enabled");
