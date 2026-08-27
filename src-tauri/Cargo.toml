@@ -1,0 +1,55 @@
+[package]
+name = "inkwell"
+version = "0.1.0"
+description = "Inkwell — Local-first writing & worldbuilding"
+authors = ["Inkwell"]
+edition = "2021"
+rust-version = "1.77"
+
+# Build in release mode for distribution
+[profile.release]
+panic = "abort"   # slim binary
+codegen-units = 1 # better optimization
+lto = true
+
+[lib]
+name = "inkwell_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "inkwell"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+# Tauri 2 — desktop runtime
+tauri = { version = "2.0", features = [] }
+tauri-plugin-dialog = "2.0"
+tauri-plugin-fs = "2.0"
+tauri-plugin-shell = "2.0"
+
+# SQLite — local database, no network
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# ULID — sortable unique IDs (no UUID randomness issues across devices)
+ulid = "1.1"
+
+# Serialization — JSON for IPC and meta.json
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling — typed errors with thiserror; no panics in production code
+thiserror = "1.0"
+
+# Time — for timestamps
+chrono = { version = "0.4", features = ["serde"] }
+
+# Hashing — for migration checksums
+sha2 = "0.10"
+hex = "0.4"
+
+[features]
+# No custom features in foundation phase.
+# custom-protocol was a Tauri v1 feature and does not exist in Tauri 2.
