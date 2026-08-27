@@ -8,6 +8,10 @@ pub mod project_repo;
 pub mod relation_repo;
 pub mod relation_type_repo;
 
+// New persistence modules
+pub mod connection_manager;
+pub mod persistence;
+
 use rusqlite::{Connection, OpenFlags};
 use std::path::Path;
 
