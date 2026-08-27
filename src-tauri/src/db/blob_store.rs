@@ -7,7 +7,6 @@ use crate::error::{InkwellError, Result};
 /// Blob store helpers for reading and writing heavy content files inside a
 /// project's .inkwell folder. All paths are relative to the project root and
 /// validated to prevent path traversal.
-
 pub fn resolve_project_root(project_dir: &Path) -> Result<PathBuf> {
     if !project_dir.exists() {
         return Err(InkwellError::Filesystem(io::Error::new(
