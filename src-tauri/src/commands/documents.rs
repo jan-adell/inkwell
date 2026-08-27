@@ -89,14 +89,28 @@ pub async fn write_document_blob(
     let project_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| InkwellError::Filesystem(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string())))?
+        .map_err(|e| {
+            InkwellError::Filesystem(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                e.to_string(),
+            ))
+        })?
         .join("default_project");
-    blob_store::write_blob(&project_dir, std::path::Path::new(&blob_relative_path), &content_text)?;
+    blob_store::write_blob(
+        &project_dir,
+        std::path::Path::new(&blob_relative_path),
+        &content_text,
+    )?;
     let mut conn = state
         .db
         .lock()
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
-    document_blob::update_document_content_blob(&mut conn, &document_id, &content_text, Some(&blob_relative_path))
+    document_blob::update_document_content_blob(
+        &mut conn,
+        &document_id,
+        &content_text,
+        Some(&blob_relative_path),
+    )
 }
 
 #[tauri::command]
@@ -122,7 +136,12 @@ pub async fn read_document_blob(
     let project_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| InkwellError::Filesystem(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string())))?
+        .map_err(|e| {
+            InkwellError::Filesystem(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                e.to_string(),
+            ))
+        })?
         .join("default_project");
     blob_store::read_blob(&project_dir, std::path::Path::new(&rel))
 }

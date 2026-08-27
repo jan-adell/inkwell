@@ -1,8 +1,8 @@
-use std::path::Path;
 use rusqlite::Connection;
+use std::path::Path;
 
-use crate::error::Result;
 use crate::db::PragmaStatus;
+use crate::error::Result;
 
 /// ConnectionManager — small facade around `open_database` and pragma verification.
 ///
@@ -27,8 +27,8 @@ impl ConnectionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use crate::db::migrations::{ensure_migrations_table, run_pending_migrations};
+    use tempfile::tempdir;
 
     #[test]
     fn open_and_verify_file_db() {
@@ -42,6 +42,9 @@ mod tests {
 
         let status = ConnectionManager::verify(&conn).expect("verify pragmas");
         assert!(status.wal_enabled, "WAL should be enabled");
-        assert!(status.foreign_keys_enabled, "Foreign keys should be enabled");
+        assert!(
+            status.foreign_keys_enabled,
+            "Foreign keys should be enabled"
+        );
     }
 }

@@ -17,7 +17,10 @@ pub fn update_document_content_blob(
     )?;
 
     // Update FTS table for the document (simple replace pattern)
-    tx.execute("DELETE FROM fts_documents WHERE document_id = ?1", params![document_id])?;
+    tx.execute(
+        "DELETE FROM fts_documents WHERE document_id = ?1",
+        params![document_id],
+    )?;
     tx.execute(
         "INSERT INTO fts_documents(document_id, title, content_text) VALUES(?1, '', ?2)",
         params![document_id, content_text],
@@ -61,10 +64,20 @@ mod tests {
         )
         .unwrap();
 
-        update_document_content_blob(&mut conn, &doc.id, "hello updated", Some("content/documents/doc.json")).unwrap();
+        update_document_content_blob(
+            &mut conn,
+            &doc.id,
+            "hello updated",
+            Some("content/documents/doc.json"),
+        )
+        .unwrap();
 
         let text: String = conn
-            .query_row("SELECT content_text FROM document_contents WHERE document_id = ?1", params![doc.id], |r| r.get(0))
+            .query_row(
+                "SELECT content_text FROM document_contents WHERE document_id = ?1",
+                params![doc.id],
+                |r| r.get(0),
+            )
             .unwrap();
 
         assert_eq!(text, "hello updated");

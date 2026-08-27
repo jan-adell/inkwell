@@ -43,7 +43,8 @@ pub fn list(conn: &Connection, limit: Option<usize>) -> Result<Vec<ProjectRow>> 
     };
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map([], row_to_project)?;
-    rows.collect::<rusqlite::Result<Vec<_>>>().map_err(InkwellError::Database)
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(InkwellError::Database)
 }
 
 pub fn update(
