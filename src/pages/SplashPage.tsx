@@ -24,7 +24,13 @@ export function SplashPage() {
         }
       } catch (err) {
         if (cancelled) return;
-        setInitError(err instanceof Error ? err.message : "Initialization failed");
+        setInitError(
+          err instanceof Error
+            ? err.message
+            : typeof err === "string"
+              ? err
+              : JSON.stringify(err) ?? "Initialization failed",
+        );
       }
     }
     init();
