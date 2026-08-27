@@ -19,11 +19,16 @@ pub fn resolve_project_root(project_dir: &Path) -> Result<PathBuf> {
 }
 
 fn validate_relative_path(relative: &Path) -> Result<()> {
-    if relative.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-        return Err(InkwellError::Filesystem(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Relative path must not traverse parent directories",
-        )));
+    for component in relative.components() {
+        match component {
+            std::path::Component::Normal(_) | std::path::Component::CurDir => {}
+            _ => {
+                return Err(InkwellError::Filesystem(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("illegal path component in blob path: {relative:?}"),
+                )));
+            }
+        }
     }
     Ok(())
 }
@@ -82,8 +87,8 @@ mod tests {
     fn prevent_path_traversal() {
         let dir = tempdir().unwrap();
         let project_root = dir.path();
-        let rel = Path::new("../outside.txt");
-        let res = write_blob(project_root, rel, "bad");
-        assert!(res.is_err());
+        assert!(write_blob(project_root, Path::new("../outside.txt"), "bad").is_err());
+        assert!(write_blob(project_root, Path::new("/etc/passwd"), "bad").is_err());
+        assert!(write_blob(project_root, Path::new("a/../../b.txt"), "bad").is_err());
     }
 }

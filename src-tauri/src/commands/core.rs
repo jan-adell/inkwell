@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tauri::Manager;
 
-use crate::db::{self, migrations, project_repo, verify_pragmas};
+use crate::db::{self, connection_manager::ConnectionManager, migrations, project_repo};
 use crate::error::InkwellError;
 use crate::models::ProjectMeta;
 use crate::state::AppState;
@@ -65,10 +65,10 @@ pub async fn initialize_core(app: tauri::AppHandle) -> Result<InitResult, Inkwel
 
     // --- Step 3: Open (or create) the SQLite database ---
     let db_path = project_dir.join("project.db");
-    let mut conn = db::open_database(&db_path)?;
+    let mut conn = ConnectionManager::open(&db_path)?;
 
     // --- Step 4: Verify pragmas are correctly applied ---
-    let pragma_status = verify_pragmas(&conn)?;
+    let pragma_status = ConnectionManager::verify(&conn)?;
 
     if !pragma_status.wal_enabled {
         return Ok(InitResult {

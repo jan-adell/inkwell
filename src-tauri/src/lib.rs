@@ -56,6 +56,8 @@ pub fn run() {
             commands::documents::list_child_documents,
             commands::documents::update_document,
             commands::documents::delete_document,
+            commands::documents::write_document_blob,
+            commands::documents::read_document_blob,
             // Projects
             commands::projects::list_projects,
             commands::projects::update_project,
