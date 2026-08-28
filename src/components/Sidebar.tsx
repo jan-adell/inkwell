@@ -106,13 +106,14 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
   );
 }
 
-// ── Sidebar ──────────────────────────────────────────────────────────────────
+// ── Sidebar ───────────────────────────────────────────────────────────
 
 export function Sidebar() {
   const {
     activeView, setActiveView,
     projectId, rootDocuments, setRootDocuments, addDocument,
     entityTypes, setEntityTypes,
+    setShowCreateEntityModal,
   } = useAppStore();
 
   const [creating, setCreating] = useState(false);
@@ -224,6 +225,19 @@ export function Sidebar() {
           >
             <Plus size={13} />
             New document
+          </button>
+        </div>
+      )}
+
+      {/* Create entity button for worldbuilding view */}
+      {activeView === "worldbuilding" && (
+        <div className="border-t border-ink-border p-2">
+          <button
+            onClick={() => setShowCreateEntityModal(true)}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-xs text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"
+          >
+            <Plus size={13} />
+            Entidad Nueva
           </button>
         </div>
       )}
