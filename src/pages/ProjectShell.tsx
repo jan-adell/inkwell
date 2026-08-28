@@ -1,6 +1,7 @@
 import { FileText, User, MapPin, Clock, Search, Settings } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { CreateEntityModal } from "../components/CreateEntityModal";
+import { CreateDocumentModal } from "../components/CreateDocumentModal";
 import { useAppStore } from "../store/appStore";
 
 // ── Inspector (right panel) ──────────────────────────────────────────────────
@@ -163,8 +164,9 @@ export function ProjectShell() {
         <Inspector />
       </div>
 
-      {/* Create Entity Modal */}
+      {/* Modals */}
       <CreateEntityModal />
+      <CreateDocumentModal />
     </div>
   );
 }
