@@ -107,13 +107,35 @@ function MainArea() {
 
 // ── Topbar ───────────────────────────────────────────────────────────────────
 
-function Topbar() {
+interface TopbarProps {
+  onBackToLibrary: () => void;
+}
+
+function Topbar({ onBackToLibrary }: TopbarProps) {
+  const projectName = useAppStore((s) => s.projectName);
+
   return (
     <header className="h-10 flex items-center justify-between px-4 bg-ink-deep border-b border-ink-border flex-shrink-0 select-none">
-      {/* Left: wordmark */}
-      <span className="text-sm font-display text-gold tracking-widest uppercase">
-        Inkwell
-      </span>
+      {/* Left: logo and project name */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onBackToLibrary}
+          title="Back to library"
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
+          <span className="text-sm font-display text-gold tracking-widest uppercase">
+            Inkwell
+          </span>
+        </button>
+        {projectName && (
+          <>
+            <span className="text-ink-border">·</span>
+            <span className="text-sm text-ivory-ghost font-mono">
+              {projectName}
+            </span>
+          </>
+        )}
+      </div>
 
       {/* Centre: search placeholder */}
       <button className="flex items-center gap-2 px-3 py-1 rounded bg-ink-surface border border-ink-border text-ivory-ghost text-xs hover:border-gold/40 transition-colors">
@@ -145,10 +167,14 @@ function Topbar() {
 
 // ── ProjectShell ─────────────────────────────────────────────────────────────
 
-export function ProjectShell() {
+interface ProjectShellProps {
+  onBackToLibrary: () => void;
+}
+
+export function ProjectShell({ onBackToLibrary }: ProjectShellProps) {
   return (
     <div className="flex flex-col h-full bg-ink-void">
-      <Topbar />
+      <Topbar onBackToLibrary={onBackToLibrary} />
       <div className="flex flex-1 min-h-0">
         {/* Left sidebar — fixed width */}
         <div className="w-56 flex-shrink-0">
