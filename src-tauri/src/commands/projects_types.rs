@@ -1,5 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Serialize)]
+pub struct OpenProjectResult {
+    pub project_id: String,
+    pub project_name: String,
+    pub schema_version: u32,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProjectDto {
     pub id: String,

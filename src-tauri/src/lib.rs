@@ -57,6 +57,12 @@ pub fn run() {
             commands::documents::write_document_blob,
             commands::documents::read_document_blob,
             // Projects
+            commands::projects::create_project,
+            commands::projects::delete_project,
+            commands::projects::export_project,
+            commands::projects::import_project,
+            commands::projects::open_project,
+            commands::projects::list_known_projects,
             commands::projects::list_projects,
             commands::projects::update_project,
         ])
