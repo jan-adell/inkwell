@@ -1,4 +1,4 @@
-import { FileText, User, MapPin, Clock, Search, Settings } from "lucide-react";
+import { FileText, Map, Clock, Search, Settings } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { CreateEntityModal } from "../components/CreateEntityModal";
 import { CreateDocumentModal } from "../components/CreateDocumentModal";
@@ -127,8 +127,7 @@ function Topbar() {
       {/* Right: secondary actions */}
       <div className="flex items-center gap-1">
         {[
-          { Icon: User,     title: "Characters" },
-          { Icon: MapPin,   title: "Locations" },
+          { Icon: Map,      title: "Locations" },
           { Icon: Clock,    title: "Timeline" },
           { Icon: Settings, title: "Settings" },
         ].map(({ Icon, title }) => (
