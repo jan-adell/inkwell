@@ -1,11 +1,13 @@
 import { useEffect } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useAppStore } from "../store/appStore";
-import { invokeInitializeCore } from "../hooks/useTauri";
+import { invokeInitializeCore, invokeListKnownProjects } from "../hooks/useTauri";
 
 export function SplashPage() {
-  const { initStatus, initError, setCoreInitialized, setInitStatus, setInitError, setProjectId } =
-    useAppStore();
+  const {
+    initStatus, initError,
+    setCoreInitialized, setInitStatus, setInitError, setProjectId, setKnownProjects,
+  } = useAppStore();
 
   useEffect(() => {
     let cancelled = false;
@@ -15,8 +17,9 @@ export function SplashPage() {
         const result = await invokeInitializeCore();
         if (cancelled) return;
         if (result.ok) {
-          // The default project id is stored in meta.json; for now we use a
-          // sentinel that commands/core.rs writes. Future: read from meta.json.
+          const projects = await invokeListKnownProjects();
+          if (cancelled) return;
+          setKnownProjects(projects);
           setProjectId("default");
           setCoreInitialized(true);
         } else {
@@ -24,7 +27,13 @@ export function SplashPage() {
         }
       } catch (err) {
         if (cancelled) return;
-        setInitError(err instanceof Error ? err.message : "Initialization failed");
+        setInitError(
+          err instanceof Error
+            ? err.message
+            : typeof err === "string"
+              ? err
+              : JSON.stringify(err) ?? "Initialization failed",
+        );
       }
     }
     init();

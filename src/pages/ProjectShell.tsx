@@ -109,13 +109,30 @@ function MainArea() {
 
 // ── Topbar ───────────────────────────────────────────────────────────
 
-function Topbar() {
+function Topbar({ onGoToLibrary }: { onGoToLibrary: () => void }) {
+  const { projectId, knownProjects } = useAppStore();
+  const projectName = knownProjects.find((p) => p.project_id === projectId)?.name;
+
   return (
     <header className="h-10 flex items-center justify-between px-4 bg-ink-deep border-b border-ink-border flex-shrink-0 select-none">
-      {/* Left: wordmark */}
-      <span className="text-sm font-display text-gold tracking-widest uppercase">
-        Inkwell
-      </span>
+      {/* Left: wordmark + project name breadcrumb */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onGoToLibrary}
+          title="Back to project library"
+          className="text-sm font-display text-gold tracking-widest uppercase hover:text-gold-bright transition-colors"
+        >
+          Inkwell
+        </button>
+        {projectName && (
+          <>
+            <span className="text-ivory-ghost text-xs">›</span>
+            <span className="text-sm text-ivory-dim font-body truncate max-w-48">
+              {projectName}
+            </span>
+          </>
+        )}
+      </div>
 
       {/* Centre: search placeholder */}
       <button className="flex items-center gap-2 px-3 py-1 rounded bg-ink-surface border border-ink-border text-ivory-ghost text-xs hover:border-gold/40 transition-colors">
@@ -146,10 +163,14 @@ function Topbar() {
 
 // ── ProjectShell ─────────────────────────────────────────────────────────
 
-export function ProjectShell() {
+interface Props {
+  onGoToLibrary: () => void;
+}
+
+export function ProjectShell({ onGoToLibrary }: Props) {
   return (
     <div className="flex flex-col h-full bg-ink-void">
-      <Topbar />
+      <Topbar onGoToLibrary={onGoToLibrary} />
       <div className="flex flex-1 min-h-0">
         {/* Left sidebar — fixed width */}
         <div className="w-56 flex-shrink-0">

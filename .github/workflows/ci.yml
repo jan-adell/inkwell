@@ -2,23 +2,23 @@ name: CI
 
 on:
   push:
-  pull_request:
 
 jobs:
   # ── Frontend: TypeScript type-check ─────────────────────────────────────────
   frontend:
-    name: Frontend lint
+    name: Frontend lint & test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 26
           cache: npm
 
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm test
 
   # ── Rust: format + clippy + tests ────────────────────────────────────────────
   rust:
@@ -60,3 +60,25 @@ jobs:
       - name: Tests
         run: cargo test
         working-directory: src-tauri
+
+  # ── Windows: build check ─────────────────────────────────────────────────────
+  windows-build:
+    name: Windows build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workdir: src-tauri
+
+      - run: npm ci
+      - name: Build (no bundle)
+        run: npm run tauri -- build --debug --no-bundle

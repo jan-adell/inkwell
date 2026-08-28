@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, Upload } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { invokeCreateProject, invokeImportProject } from "../hooks/useTauri";
 
 interface Props {
   onCancel: () => void;
-  onCreated: (projectName: string) => void;
+  onCreated: (projectId: string) => void;
 }
 
 export function CreateProject({ onCancel, onCreated }: Props) {
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleCreate() {
@@ -19,16 +22,32 @@ export function CreateProject({ onCancel, onCreated }: Props) {
     }
     setError(null);
     setCreating(true);
-
     try {
-      // Integration point: replace with invokeCreateProject(trimmed) from useTauri.ts
-      // when the Tauri command is wired up. For now, mock a short delay.
-      await new Promise((r) => setTimeout(r, 300));
-      onCreated(trimmed);
+      const result = await invokeCreateProject(trimmed);
+      onCreated(result.project_id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create project.");
+      setError(e instanceof Error ? e.message : typeof e === "string" ? e : "Failed to create project.");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleImport() {
+    const selected = await open({
+      filters: [{ name: "Inkwell Project", extensions: ["inkwell"] }],
+    });
+    if (!selected) return;
+
+    setError(null);
+    setImporting(true);
+    try {
+      const archivePath = Array.isArray(selected) ? selected[0] : selected;
+      const result = await invokeImportProject(archivePath);
+      onCreated(result.project_id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : typeof e === "string" ? e : "Failed to import project.");
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -69,7 +88,7 @@ export function CreateProject({ onCancel, onCreated }: Props) {
             Give your world a name. You can change it later.
           </p>
 
-          {/* Input */}
+          {/* Name input */}
           <label className="block mb-1">
             <span className="text-xs font-mono text-ivory-ghost uppercase tracking-wider">
               Project name
@@ -106,7 +125,7 @@ export function CreateProject({ onCancel, onCreated }: Props) {
             </button>
             <button
               onClick={handleCreate}
-              disabled={creating || !name.trim()}
+              disabled={creating || importing || !name.trim()}
               className="
                 flex-1 py-2.5 rounded-lg
                 bg-gold text-ink-void text-sm font-mono font-semibold
@@ -117,6 +136,28 @@ export function CreateProject({ onCancel, onCreated }: Props) {
               {creating ? "Creating…" : "Create project"}
             </button>
           </div>
+
+          {/* Import divider */}
+          <div className="flex items-center gap-3 mt-8">
+            <div className="flex-1 h-px bg-ink-border" />
+            <span className="text-xs text-ivory-ghost font-mono">or</span>
+            <div className="flex-1 h-px bg-ink-border" />
+          </div>
+
+          <button
+            onClick={handleImport}
+            disabled={importing || creating}
+            className="
+              mt-4 w-full flex items-center justify-center gap-2
+              py-2.5 rounded-lg border border-ink-border
+              text-ivory-ghost text-sm font-mono
+              hover:border-gold/40 hover:text-ivory hover:bg-gold/5
+              transition-colors disabled:opacity-40 disabled:cursor-not-allowed
+            "
+          >
+            <Upload size={14} />
+            {importing ? "Importing…" : "Import existing project"}
+          </button>
         </div>
       </main>
     </div>

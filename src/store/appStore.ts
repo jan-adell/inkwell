@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Document, Entity, EntityType } from "../types/core";
+import type { Document, Entity, EntityType, KnownProject } from "../types/core";
 
 type ActiveView = "writing" | "worldbuilding";
 
@@ -23,6 +23,9 @@ interface AppState {
   rootDocuments: Document[];
   childrenMap: Record<string, Document[]>; // parent_id → children
 
+  // ── Project library ───────────────────────────────────────────────────────
+  knownProjects: KnownProject[];
+
   // ── Worldbuilding ────────────────────────────────────────────────────────
   entityTypes: EntityType[];
   entitiesByType: Record<string, Entity[]>; // entity_type_id → entities
@@ -31,7 +34,7 @@ interface AppState {
   setCoreInitialized: (value: boolean) => void;
   setInitStatus: (status: string) => void;
   setInitError: (error: string | null) => void;
-  setProjectId: (id: string) => void;
+  setProjectId: (id: string | null) => void;
   setActiveView: (view: ActiveView) => void;
   setSelectedDocumentId: (id: string | null) => void;
   setSelectedEntityId: (id: string | null) => void;
@@ -39,6 +42,8 @@ interface AppState {
   setChildren: (parentId: string, docs: Document[]) => void;
   addDocument: (doc: Document) => void;
   removeDocument: (id: string) => void;
+  setKnownProjects: (projects: KnownProject[]) => void;
+  resetProjectState: () => void;
   setEntityTypes: (types: EntityType[]) => void;
   setEntitiesForType: (typeId: string, entities: Entity[]) => void;
   setShowCreateEntityModal: (value: boolean) => void;
@@ -57,6 +62,7 @@ export const useAppStore = create<AppState>((set) => ({
   showCreateDocumentModal: false,
   rootDocuments: [],
   childrenMap: {},
+  knownProjects: [],
   entityTypes: [],
   entitiesByType: {},
 
@@ -86,6 +92,16 @@ export const useAppStore = create<AppState>((set) => ({
       rootDocuments: s.rootDocuments.filter((d) => d.id !== id),
       selectedDocumentId: s.selectedDocumentId === id ? null : s.selectedDocumentId,
     })),
+  setKnownProjects: (projects) => set({ knownProjects: projects }),
+  resetProjectState: () =>
+    set({
+      rootDocuments: [],
+      childrenMap: {},
+      entityTypes: [],
+      entitiesByType: {},
+      selectedDocumentId: null,
+      selectedEntityId: null,
+    }),
   setEntityTypes: (types) => set({ entityTypes: types }),
   setEntitiesForType: (typeId, entities) =>
     set((s) => ({ entitiesByType: { ...s.entitiesByType, [typeId]: entities } })),

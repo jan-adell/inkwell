@@ -34,6 +34,37 @@ pub fn create(conn: &Connection, id: &str, name: &str) -> Result<ProjectRow> {
     get(conn, id)
 }
 
+pub fn list(conn: &Connection, limit: Option<usize>) -> Result<Vec<ProjectRow>> {
+    let sql = match limit {
+        Some(n) => format!(
+            "SELECT id,name,description,created_at,updated_at,settings FROM projects ORDER BY created_at DESC LIMIT {n}"
+        ),
+        None => "SELECT id,name,description,created_at,updated_at,settings FROM projects ORDER BY created_at DESC".to_string(),
+    };
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map([], row_to_project)?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(InkwellError::Database)
+}
+
+pub fn update(
+    conn: &Connection,
+    id: &str,
+    name: &str,
+    description: Option<&str>,
+    settings: Option<&str>,
+) -> Result<ProjectRow> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let affected = conn.execute(
+        "UPDATE projects SET name=?1, description=?2, settings=?3, updated_at=?4 WHERE id=?5",
+        params![name, description, settings, now, id],
+    )?;
+    if affected == 0 {
+        return Err(InkwellError::NotFound(format!("Project '{id}' not found")));
+    }
+    get(conn, id)
+}
+
 pub fn get(conn: &Connection, id: &str) -> Result<ProjectRow> {
     conn.query_row(
         "SELECT id,name,description,created_at,updated_at,settings

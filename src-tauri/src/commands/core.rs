@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tauri::Manager;
 
-use crate::db::{self, migrations, project_repo, verify_pragmas};
+use crate::db::{self, connection_manager::ConnectionManager, migrations, project_repo, registry};
 use crate::error::InkwellError;
 use crate::models::ProjectMeta;
 use crate::state::AppState;
@@ -65,10 +65,10 @@ pub async fn initialize_core(app: tauri::AppHandle) -> Result<InitResult, Inkwel
 
     // --- Step 3: Open (or create) the SQLite database ---
     let db_path = project_dir.join("project.db");
-    let mut conn = db::open_database(&db_path)?;
+    let mut conn = ConnectionManager::open(&db_path)?;
 
     // --- Step 4: Verify pragmas are correctly applied ---
-    let pragma_status = verify_pragmas(&conn)?;
+    let pragma_status = ConnectionManager::verify(&conn)?;
 
     if !pragma_status.wal_enabled {
         return Ok(InitResult {
@@ -99,6 +99,7 @@ pub async fn initialize_core(app: tauri::AppHandle) -> Result<InitResult, Inkwel
     if project_repo::get(&conn, &project_id).is_err() {
         project_repo::create(&conn, &project_id, "Default Project")?;
     }
+    registry::register(&app_data_dir, &project_id, "Default Project", &project_dir)?;
 
     // --- Step 8: Register AppState so CRUD commands can access the connection ---
     //
@@ -129,19 +130,9 @@ pub async fn initialize_core(app: tauri::AppHandle) -> Result<InitResult, Inkwel
 /// The `project.db` file is created by SQLite on first open.
 /// The `meta.json` file is written by `write_meta_json`.
 fn ensure_project_structure(project_dir: &Path) -> Result<(), InkwellError> {
-    let dirs = [
-        project_dir,
-        &project_dir.join("assets/characters"),
-        &project_dir.join("assets/maps"),
-        &project_dir.join("assets/covers"),
-    ];
-
-    for dir in &dirs {
-        if !dir.exists() {
-            std::fs::create_dir_all(dir)?;
-        }
-    }
-
+    std::fs::create_dir_all(project_dir.join("assets/characters"))?;
+    std::fs::create_dir_all(project_dir.join("assets/maps"))?;
+    std::fs::create_dir_all(project_dir.join("assets/covers"))?;
     Ok(())
 }
 
@@ -156,17 +147,32 @@ fn ensure_project_structure(project_dir: &Path) -> Result<(), InkwellError> {
 fn write_meta_json(project_dir: &Path, schema_version: u32) -> Result<String, InkwellError> {
     let meta_path = project_dir.join("meta.json");
 
-    // Only write if it doesn't exist yet, to avoid overwriting an
-    // existing project_id (which must never change once set).
-    if meta_path.exists() {
-        let existing = std::fs::read_to_string(&meta_path)?;
+    // Try to read the existing meta.json; if it's missing (deleted between
+    // a previous ensure_project_structure and this read), fall through to create a new one.
+    let existing_content = match std::fs::read_to_string(&meta_path) {
+        Ok(c) => Some(c),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => {
+            return Err(InkwellError::Filesystem(std::io::Error::new(
+                e.kind(),
+                format!("{}: {}", meta_path.display(), e),
+            )));
+        }
+    };
+
+    if let Some(existing) = existing_content {
         let mut meta: serde_json::Value = serde_json::from_str(&existing)?;
 
         if meta["inkwell_schema"].as_u64() != Some(schema_version as u64) {
             meta["inkwell_schema"] = serde_json::json!(schema_version);
             meta["app_version"] = serde_json::json!(ProjectMeta::APP_VERSION);
             let updated = serde_json::to_string_pretty(&meta)?;
-            std::fs::write(&meta_path, updated)?;
+            std::fs::write(&meta_path, updated).map_err(|e| {
+                InkwellError::Filesystem(std::io::Error::new(
+                    e.kind(),
+                    format!("{}: {}", meta_path.display(), e),
+                ))
+            })?;
         }
 
         let project_id = meta["project_id"]
@@ -176,7 +182,7 @@ fn write_meta_json(project_dir: &Path, schema_version: u32) -> Result<String, In
         return Ok(project_id);
     }
 
-    // First time: generate a new project_id (ULID) and write full meta.json.
+    // meta.json missing — create it with a fresh project_id.
     let project_id = ulid::Ulid::new().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -189,7 +195,12 @@ fn write_meta_json(project_dir: &Path, schema_version: u32) -> Result<String, In
     };
 
     let json = serde_json::to_string_pretty(&meta)?;
-    std::fs::write(&meta_path, json)?;
+    std::fs::write(&meta_path, &json).map_err(|e| {
+        InkwellError::Filesystem(std::io::Error::new(
+            e.kind(),
+            format!("{}: {}", meta_path.display(), e),
+        ))
+    })?;
 
     Ok(project_id)
 }

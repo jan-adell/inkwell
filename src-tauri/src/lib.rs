@@ -11,11 +11,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
-        .setup(|_app| {
-            // AppState is registered inside initialize_core after the DB is
-            // opened and migrations are applied. Nothing to do here yet.
-            Ok(())
-        })
+        .setup(|_app| Ok(()))
         .invoke_handler(tauri::generate_handler![
             commands::core::initialize_core,
             // Entity types
@@ -58,6 +54,17 @@ pub fn run() {
             commands::documents::list_child_documents,
             commands::documents::update_document,
             commands::documents::delete_document,
+            commands::documents::write_document_blob,
+            commands::documents::read_document_blob,
+            // Projects
+            commands::projects::create_project,
+            commands::projects::delete_project,
+            commands::projects::export_project,
+            commands::projects::import_project,
+            commands::projects::open_project,
+            commands::projects::list_known_projects,
+            commands::projects::list_projects,
+            commands::projects::update_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Inkwell");

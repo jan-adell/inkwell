@@ -4,5 +4,7 @@ pub mod entities;
 pub mod entity_types;
 pub mod field_definitions;
 pub mod field_values;
+pub mod projects;
+pub mod projects_types;
 pub mod relation_types;
 pub mod relations;

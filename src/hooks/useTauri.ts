@@ -1,8 +1,43 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Document, Entity, EntityType, InitResult } from "../types/core";
+import type { Document, Entity, EntityType, InitResult, KnownProject } from "../types/core";
 
 export async function invokeInitializeCore(): Promise<InitResult> {
   return invoke<InitResult>("initialize_core");
+}
+
+// ── Projects ──────────────────────────────────────────────────────────────────
+
+export async function invokeDeleteProject(projectId: string): Promise<void> {
+  return invoke("delete_project", { projectId });
+}
+
+export async function invokeExportProject(
+  projectId: string,
+  destPath: string,
+): Promise<void> {
+  return invoke("export_project", { projectId, destPath });
+}
+
+export async function invokeImportProject(
+  archivePath: string,
+): Promise<{ project_id: string; project_name: string; schema_version: number }> {
+  return invoke("import_project", { archivePath });
+}
+
+export async function invokeCreateProject(
+  name: string,
+): Promise<{ project_id: string; project_name: string; schema_version: number }> {
+  return invoke("create_project", { name });
+}
+
+export async function invokeOpenProject(
+  path: string,
+): Promise<{ project_id: string; project_name: string; schema_version: number }> {
+  return invoke("open_project", { path });
+}
+
+export async function invokeListKnownProjects(): Promise<KnownProject[]> {
+  return invoke<KnownProject[]>("list_known_projects");
 }
 
 // ── Documents ────────────────────────────────────────────────────────────────
