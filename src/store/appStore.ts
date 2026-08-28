@@ -9,25 +9,27 @@ interface AppState {
   initStatus: string;
   initError: string | null;
   projectId: string | null;
+  projectName: string | null;
 
-  // ── Navigation ────────────────────────────────────────────────────────────
+  // ── Navigation ─────────────────────────────────────────────────────────────
   activeView: ActiveView;
   selectedDocumentId: string | null;
   selectedEntityId: string | null;
 
-  // ── Document tree ─────────────────────────────────────────────────────────
+  // ── Document tree ────────────────────────────────────────────────────────────
   rootDocuments: Document[];
   childrenMap: Record<string, Document[]>; // parent_id → children
 
-  // ── Worldbuilding ─────────────────────────────────────────────────────────
+  // ── Worldbuilding ────────────────────────────────────────────────────────────
   entityTypes: EntityType[];
   entitiesByType: Record<string, Entity[]>; // entity_type_id → entities
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+  // ── Actions ──────────────────────────────────────────────────────────────────
   setCoreInitialized: (value: boolean) => void;
   setInitStatus: (status: string) => void;
   setInitError: (error: string | null) => void;
   setProjectId: (id: string) => void;
+  setProjectName: (name: string | null) => void;
   setActiveView: (view: ActiveView) => void;
   setSelectedDocumentId: (id: string | null) => void;
   setSelectedEntityId: (id: string | null) => void;
@@ -44,6 +46,7 @@ export const useAppStore = create<AppState>((set) => ({
   initStatus: "Starting…",
   initError: null,
   projectId: null,
+  projectName: null,
   activeView: "writing",
   selectedDocumentId: null,
   selectedEntityId: null,
@@ -56,6 +59,7 @@ export const useAppStore = create<AppState>((set) => ({
   setInitStatus: (status) => set({ initStatus: status }),
   setInitError: (error) => set({ initError: error }),
   setProjectId: (id) => set({ projectId: id }),
+  setProjectName: (name) => set({ projectName: name }),
   setActiveView: (view) => set({ activeView: view }),
   setSelectedDocumentId: (id) => set({ selectedDocumentId: id }),
   setSelectedEntityId: (id) => set({ selectedEntityId: id }),
@@ -82,4 +86,3 @@ export const useAppStore = create<AppState>((set) => ({
   setEntitiesForType: (typeId, entities) =>
     set((s) => ({ entitiesByType: { ...s.entitiesByType, [typeId]: entities } })),
 }));
-
