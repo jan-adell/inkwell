@@ -10,20 +10,23 @@ interface AppState {
   initError: string | null;
   projectId: string | null;
 
-  // ── Navigation ────────────────────────────────────────────────────────────
+  // ── Navigation ─────────────────────────────────────────────────────────
   activeView: ActiveView;
   selectedDocumentId: string | null;
   selectedEntityId: string | null;
 
-  // ── Document tree ─────────────────────────────────────────────────────────
+  // ── Modals ─────────────────────────────────────────────────────────
+  showCreateEntityModal: boolean;
+
+  // ── Document tree ────────────────────────────────────────────────────────
   rootDocuments: Document[];
   childrenMap: Record<string, Document[]>; // parent_id → children
 
-  // ── Worldbuilding ─────────────────────────────────────────────────────────
+  // ── Worldbuilding ────────────────────────────────────────────────────────
   entityTypes: EntityType[];
   entitiesByType: Record<string, Entity[]>; // entity_type_id → entities
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+  // ── Actions ──────────────────────────────────────────────────────────
   setCoreInitialized: (value: boolean) => void;
   setInitStatus: (status: string) => void;
   setInitError: (error: string | null) => void;
@@ -37,6 +40,7 @@ interface AppState {
   removeDocument: (id: string) => void;
   setEntityTypes: (types: EntityType[]) => void;
   setEntitiesForType: (typeId: string, entities: Entity[]) => void;
+  setShowCreateEntityModal: (value: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -47,6 +51,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeView: "writing",
   selectedDocumentId: null,
   selectedEntityId: null,
+  showCreateEntityModal: false,
   rootDocuments: [],
   childrenMap: {},
   entityTypes: [],
@@ -81,5 +86,5 @@ export const useAppStore = create<AppState>((set) => ({
   setEntityTypes: (types) => set({ entityTypes: types }),
   setEntitiesForType: (typeId, entities) =>
     set((s) => ({ entitiesByType: { ...s.entitiesByType, [typeId]: entities } })),
+  setShowCreateEntityModal: (value) => set({ showCreateEntityModal: value }),
 }));
-
