@@ -17,6 +17,7 @@ interface AppState {
 
   // ── Modals ─────────────────────────────────────────────────────────
   showCreateEntityModal: boolean;
+  showCreateDocumentModal: boolean;
 
   // ── Document tree ────────────────────────────────────────────────────────
   rootDocuments: Document[];
@@ -41,6 +42,7 @@ interface AppState {
   setEntityTypes: (types: EntityType[]) => void;
   setEntitiesForType: (typeId: string, entities: Entity[]) => void;
   setShowCreateEntityModal: (value: boolean) => void;
+  setShowCreateDocumentModal: (value: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -52,6 +54,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedDocumentId: null,
   selectedEntityId: null,
   showCreateEntityModal: false,
+  showCreateDocumentModal: false,
   rootDocuments: [],
   childrenMap: {},
   entityTypes: [],
@@ -87,4 +90,5 @@ export const useAppStore = create<AppState>((set) => ({
   setEntitiesForType: (typeId, entities) =>
     set((s) => ({ entitiesByType: { ...s.entitiesByType, [typeId]: entities } })),
   setShowCreateEntityModal: (value) => set({ showCreateEntityModal: value }),
+  setShowCreateDocumentModal: (value) => set({ showCreateDocumentModal: value }),
 }));
