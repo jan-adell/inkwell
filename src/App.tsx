@@ -1,5 +1,6 @@
 import { useReducer } from "react";
 import { useAppStore } from "./store/appStore";
+import { invokeOpenProject, invokeListKnownProjects } from "./hooks/useTauri";
 import { SplashPage } from "./pages/SplashPage";
 import { ProjectLibrary } from "./pages/ProjectLibrary";
 import { CreateProject } from "./pages/CreateProject";
@@ -20,7 +21,7 @@ type Screen = "library" | "create" | "shell";
  * Navigation is local state — no routing library needed at this stage.
  */
 export default function App() {
-  const { coreInitialized, setProjectId } = useAppStore();
+  const { coreInitialized, setProjectId, setKnownProjects, resetProjectState } = useAppStore();
   const [screen, setScreen] = useReducer(
     (_prev: Screen, next: Screen) => next,
     "library" as Screen
@@ -34,8 +35,12 @@ export default function App() {
   if (screen === "library") {
     return (
       <ProjectLibrary
-        onOpenProject={(project) => {
-          setProjectId(project.id);
+        onOpenProject={async (project) => {
+          await invokeOpenProject(project.path);
+          resetProjectState();
+          setProjectId(project.project_id);
+          const updated = await invokeListKnownProjects();
+          setKnownProjects(updated);
           setScreen("shell");
         }}
         onNewProject={() => setScreen("create")}
@@ -47,12 +52,11 @@ export default function App() {
     return (
       <CreateProject
         onCancel={() => setScreen("library")}
-        onCreated={(name) => {
-          // Integration point: replace with invokeCreateProject(name) from
-          // hooks/useTauri.ts when the Tauri command is wired up.
-          const mockId = `project-${Date.now()}`;
-          setProjectId(mockId);
-          console.info(`[Inkwell] Created project "${name}" — id: ${mockId}`);
+        onCreated={async (projectId) => {
+          resetProjectState();
+          setProjectId(projectId);
+          const updated = await invokeListKnownProjects();
+          setKnownProjects(updated);
           setScreen("shell");
         }}
       />
@@ -60,5 +64,5 @@ export default function App() {
   }
 
   // screen === "shell"
-  return <ProjectShell />;
+  return <ProjectShell onGoToLibrary={() => setScreen("library")} />;
 }
