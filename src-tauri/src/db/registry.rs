@@ -131,8 +131,20 @@ mod tests {
     #[test]
     fn remove_project() {
         let dir = tempdir().unwrap();
-        register(dir.path(), "proj-1", "Novel A", &dir.path().join("A.inkwell")).unwrap();
-        register(dir.path(), "proj-2", "Novel B", &dir.path().join("B.inkwell")).unwrap();
+        register(
+            dir.path(),
+            "proj-1",
+            "Novel A",
+            &dir.path().join("A.inkwell"),
+        )
+        .unwrap();
+        register(
+            dir.path(),
+            "proj-2",
+            "Novel B",
+            &dir.path().join("B.inkwell"),
+        )
+        .unwrap();
         remove(dir.path(), "proj-1").unwrap();
         let projects = load(dir.path()).unwrap();
         assert_eq!(projects.len(), 1);

@@ -7,8 +7,8 @@ use tauri::{Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
-use crate::db::{connection_manager::ConnectionManager, migrations, registry};
 use crate::db::registry::KnownProject;
+use crate::db::{connection_manager::ConnectionManager, migrations, registry};
 use crate::error::InkwellError;
 use crate::state::AppState;
 
@@ -46,7 +46,10 @@ pub async fn export_project(
     dest_path: String,
 ) -> Result<(), InkwellError> {
     let app_data_dir = app.path().app_data_dir().map_err(|e| {
-        InkwellError::Filesystem(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string()))
+        InkwellError::Filesystem(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            e.to_string(),
+        ))
     })?;
 
     let projects = registry::load(&app_data_dir)?;
@@ -58,10 +61,10 @@ pub async fn export_project(
 
     let dest_file = File::create(&dest_path)?;
     let mut zip = ZipWriter::new(dest_file);
-    let options =
-        SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     add_dir_to_zip(&mut zip, &project_path, &project_path, options)?;
-    zip.finish().map_err(|e| InkwellError::Internal(e.to_string()))?;
+    zip.finish()
+        .map_err(|e| InkwellError::Internal(e.to_string()))?;
 
     Ok(())
 }
@@ -73,7 +76,10 @@ pub async fn import_project(
     archive_path: String,
 ) -> Result<OpenProjectResult, InkwellError> {
     let app_data_dir = app.path().app_data_dir().map_err(|e| {
-        InkwellError::Filesystem(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string()))
+        InkwellError::Filesystem(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            e.to_string(),
+        ))
     })?;
 
     let new_folder_id = ulid::Ulid::new().to_string();
@@ -84,8 +90,8 @@ pub async fn import_project(
 
     let extract_result = (|| -> Result<(), InkwellError> {
         let archive_file = File::open(&archive_path)?;
-        let mut archive = ZipArchive::new(archive_file)
-            .map_err(|e| InkwellError::Internal(e.to_string()))?;
+        let mut archive =
+            ZipArchive::new(archive_file).map_err(|e| InkwellError::Internal(e.to_string()))?;
         for i in 0..archive.len() {
             let mut entry = archive
                 .by_index(i)
@@ -151,7 +157,11 @@ pub async fn import_project(
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     *conn_guard = new_conn;
 
-    Ok(OpenProjectResult { project_id, project_name, schema_version })
+    Ok(OpenProjectResult {
+        project_id,
+        project_name,
+        schema_version,
+    })
 }
 
 #[tauri::command]
@@ -161,7 +171,10 @@ pub async fn delete_project(
     project_id: String,
 ) -> Result<(), InkwellError> {
     let app_data_dir = app.path().app_data_dir().map_err(|e| {
-        InkwellError::Filesystem(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string()))
+        InkwellError::Filesystem(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            e.to_string(),
+        ))
     })?;
 
     let projects = registry::load(&app_data_dir)?;
@@ -208,11 +221,16 @@ pub async fn create_project(
 ) -> Result<OpenProjectResult, InkwellError> {
     let name = name.trim().to_string();
     if name.is_empty() {
-        return Err(InkwellError::Validation("project name cannot be empty".into()));
+        return Err(InkwellError::Validation(
+            "project name cannot be empty".into(),
+        ));
     }
 
     let app_data_dir = app.path().app_data_dir().map_err(|e| {
-        InkwellError::Filesystem(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string()))
+        InkwellError::Filesystem(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            e.to_string(),
+        ))
     })?;
 
     let project_id = ulid::Ulid::new().to_string();
@@ -255,7 +273,11 @@ pub async fn create_project(
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     *conn_guard = new_conn;
 
-    Ok(OpenProjectResult { project_id, project_name: name, schema_version })
+    Ok(OpenProjectResult {
+        project_id,
+        project_name: name,
+        schema_version,
+    })
 }
 
 #[tauri::command]
@@ -283,7 +305,10 @@ pub async fn open_project(
         .to_string();
 
     let app_data_dir = app.path().app_data_dir().map_err(|e| {
-        InkwellError::Filesystem(std::io::Error::new(std::io::ErrorKind::NotFound, e.to_string()))
+        InkwellError::Filesystem(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            e.to_string(),
+        ))
     })?;
     registry::register(&app_data_dir, &project_id, &project_name, &project_path)?;
 
@@ -293,7 +318,11 @@ pub async fn open_project(
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     *conn_guard = new_conn;
 
-    Ok(OpenProjectResult { project_id, project_name, schema_version })
+    Ok(OpenProjectResult {
+        project_id,
+        project_name,
+        schema_version,
+    })
 }
 
 #[tauri::command]
