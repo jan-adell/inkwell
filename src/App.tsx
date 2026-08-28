@@ -20,7 +20,7 @@ type Screen = "library" | "create" | "shell";
  * Navigation is local state — no routing library needed at this stage.
  */
 export default function App() {
-  const { coreInitialized, setProjectId } = useAppStore();
+  const { coreInitialized, setProjectId, setProjectName } = useAppStore();
   const [screen, setScreen] = useReducer(
     (_prev: Screen, next: Screen) => next,
     "library" as Screen
@@ -36,6 +36,7 @@ export default function App() {
       <ProjectLibrary
         onOpenProject={(project) => {
           setProjectId(project.id);
+          setProjectName(project.name);
           setScreen("shell");
         }}
         onNewProject={() => setScreen("create")}
@@ -52,6 +53,7 @@ export default function App() {
           // hooks/useTauri.ts when the Tauri command is wired up.
           const mockId = `project-${Date.now()}`;
           setProjectId(mockId);
+          setProjectName(name);
           console.info(`[Inkwell] Created project "${name}" — id: ${mockId}`);
           setScreen("shell");
         }}
@@ -60,5 +62,13 @@ export default function App() {
   }
 
   // screen === "shell"
-  return <ProjectShell />;
+  return (
+    <ProjectShell
+      onBackToLibrary={() => {
+        setProjectId(null);
+        setProjectName(null);
+        setScreen("library");
+      }}
+    />
+  );
 }
