@@ -1,5 +1,7 @@
-import { FileText, User, MapPin, Clock, Search, Settings } from "lucide-react";
+import { FileText, Map, Clock, Search, Settings } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
+import { CreateEntityModal } from "../components/CreateEntityModal";
+import { CreateDocumentModal } from "../components/CreateDocumentModal";
 import { useAppStore } from "../store/appStore";
 
 // ── Inspector (right panel) ──────────────────────────────────────────────────
@@ -105,7 +107,7 @@ function MainArea() {
   );
 }
 
-// ── Topbar ───────────────────────────────────────────────────────────────────
+// ── Topbar ───────────────────────────────────────────────────────────
 
 function Topbar({ onGoToLibrary }: { onGoToLibrary: () => void }) {
   const { projectId, knownProjects } = useAppStore();
@@ -142,8 +144,7 @@ function Topbar({ onGoToLibrary }: { onGoToLibrary: () => void }) {
       {/* Right: secondary actions */}
       <div className="flex items-center gap-1">
         {[
-          { Icon: User,     title: "Characters" },
-          { Icon: MapPin,   title: "Locations" },
+          { Icon: Map,      title: "Locations" },
           { Icon: Clock,    title: "Timeline" },
           { Icon: Settings, title: "Settings" },
         ].map(({ Icon, title }) => (
@@ -160,7 +161,7 @@ function Topbar({ onGoToLibrary }: { onGoToLibrary: () => void }) {
   );
 }
 
-// ── ProjectShell ─────────────────────────────────────────────────────────────
+// ── ProjectShell ─────────────────────────────────────────────────────────
 
 interface Props {
   onGoToLibrary: () => void;
@@ -182,6 +183,10 @@ export function ProjectShell({ onGoToLibrary }: Props) {
         {/* Right inspector — fixed width */}
         <Inspector />
       </div>
+
+      {/* Modals */}
+      <CreateEntityModal />
+      <CreateDocumentModal />
     </div>
   );
 }
