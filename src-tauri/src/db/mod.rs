@@ -12,6 +12,7 @@ pub mod blob_store;
 pub mod document_blob;
 
 pub mod connection_manager;
+pub mod registry;
 
 use rusqlite::{Connection, OpenFlags};
 use std::path::Path;
