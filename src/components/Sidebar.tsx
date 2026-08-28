@@ -167,6 +167,19 @@ export function Sidebar() {
         </button>
       </div>
 
+      {/* New Entity button - only in worldbuilding view */}
+      {activeView === "worldbuilding" && (
+        <div className="px-2 py-2 border-b border-ink-border">
+          <button
+            onClick={() => setShowCreateEntityModal(true)}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded text-xs text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"
+          >
+            <Plus size={13} />
+            New Entity
+          </button>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto py-2 min-h-0">
         {activeView === "writing" ? (
@@ -215,7 +228,7 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Footer action */}
+      {/* Footer action - only for writing view */}
       {activeView === "writing" && rootDocuments.length > 0 && (
         <div className="border-t border-ink-border p-2">
           <button
@@ -225,19 +238,6 @@ export function Sidebar() {
           >
             <Plus size={13} />
             New document
-          </button>
-        </div>
-      )}
-
-      {/* Create entity button for worldbuilding view */}
-      {activeView === "worldbuilding" && (
-        <div className="border-t border-ink-border p-2">
-          <button
-            onClick={() => setShowCreateEntityModal(true)}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-xs text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"
-          >
-            <Plus size={13} />
-            Entidad Nueva
           </button>
         </div>
       )}
