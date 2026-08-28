@@ -75,3 +75,10 @@ export interface Entity {
 
 export type NodeType = Document["node_type"];
 
+export interface KnownProject {
+  project_id: string;
+  name: string;
+  path: string;
+  last_opened_at: string;
+}
+
