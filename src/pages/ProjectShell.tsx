@@ -1,5 +1,6 @@
 import { FileText, User, MapPin, Clock, Search, Settings } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
+import { CreateEntityModal } from "../components/CreateEntityModal";
 import { useAppStore } from "../store/appStore";
 
 // ── Inspector (right panel) ──────────────────────────────────────────────────
@@ -105,7 +106,7 @@ function MainArea() {
   );
 }
 
-// ── Topbar ───────────────────────────────────────────────────────────────────
+// ── Topbar ───────────────────────────────────────────────────────────
 
 function Topbar() {
   return (
@@ -143,7 +144,7 @@ function Topbar() {
   );
 }
 
-// ── ProjectShell ─────────────────────────────────────────────────────────────
+// ── ProjectShell ─────────────────────────────────────────────────────────
 
 export function ProjectShell() {
   return (
@@ -161,6 +162,9 @@ export function ProjectShell() {
         {/* Right inspector — fixed width */}
         <Inspector />
       </div>
+
+      {/* Create Entity Modal */}
+      <CreateEntityModal />
     </div>
   );
 }
