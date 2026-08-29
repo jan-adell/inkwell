@@ -75,3 +75,29 @@ pub async fn delete_entity(state: State<'_, AppState>, id: String) -> Result<()>
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     entity_repo::delete(&conn, &id)
 }
+
+#[tauri::command]
+pub async fn write_entity_notes(
+    state: State<'_, AppState>,
+    entity_id: String,
+    notes_json: String,
+    notes_text: String,
+) -> Result<()> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+    entity_repo::update_notes(&conn, &entity_id, &notes_json, &notes_text)
+}
+
+#[tauri::command]
+pub async fn read_entity_notes(
+    state: State<'_, AppState>,
+    entity_id: String,
+) -> Result<Option<String>> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+    entity_repo::get_notes(&conn, &entity_id)
+}
