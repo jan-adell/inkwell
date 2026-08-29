@@ -1,22 +1,23 @@
 use rusqlite::{params, Connection};
 
-use crate::error::Result;
+use crate::error::{InkwellError, Result};
 
-pub fn update_document_content_blob(
+const EMPTY_DOC_JSON: &str = r#"{"type":"doc","content":[]}"#;
+
+pub fn update_document_content(
     conn: &mut Connection,
     document_id: &str,
+    content_json: &str,
     content_text: &str,
-    blob_path: Option<&str>,
 ) -> Result<()> {
     let now = chrono::Utc::now().to_rfc3339();
     let tx = conn.transaction()?;
 
     tx.execute(
-        "UPDATE document_contents SET content_text = ?1, updated_at = ?2, blob_path = ?3 WHERE document_id = ?4",
-        params![content_text, now, blob_path, document_id],
+        "UPDATE document_contents SET content_json = ?1, content_text = ?2, updated_at = ?3 WHERE document_id = ?4",
+        params![content_json, content_text, now, document_id],
     )?;
 
-    // Update FTS table for the document (simple replace pattern)
     tx.execute(
         "DELETE FROM fts_documents WHERE document_id = ?1",
         params![document_id],
@@ -28,6 +29,19 @@ pub fn update_document_content_blob(
 
     tx.commit()?;
     Ok(())
+}
+
+pub fn get_document_content(conn: &Connection, document_id: &str) -> Result<String> {
+    let result = conn.query_row(
+        "SELECT content_json FROM document_contents WHERE document_id = ?1",
+        params![document_id],
+        |r| r.get::<_, String>(0),
+    );
+    match result {
+        Ok(json) => Ok(json),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(EMPTY_DOC_JSON.to_string()),
+        Err(e) => Err(InkwellError::Database(e)),
+    }
 }
 
 #[cfg(test)]
@@ -46,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    fn update_content_blob_roundtrip() {
+    fn update_and_read_content_roundtrip() {
         let mut conn = test_conn();
 
         crate::db::project_repo::create(&conn, "proj-1", "P").unwrap();
@@ -56,7 +70,7 @@ mod tests {
             &CreateDocumentRequest {
                 parent_id: None,
                 node_type: "chapter".into(),
-                title: "Title".into(),
+                title: "Chapter One".into(),
                 synopsis: None,
                 status: None,
                 sort_order: None,
@@ -64,22 +78,17 @@ mod tests {
         )
         .unwrap();
 
-        update_document_content_blob(
-            &mut conn,
-            &doc.id,
-            "hello updated",
-            Some("content/documents/doc.json"),
-        )
-        .unwrap();
+        let json = r#"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Hello"}]}]}"#;
+        update_document_content(&mut conn, &doc.id, json, "Hello").unwrap();
 
-        let text: String = conn
-            .query_row(
-                "SELECT content_text FROM document_contents WHERE document_id = ?1",
-                params![doc.id],
-                |r| r.get(0),
-            )
-            .unwrap();
+        let read = get_document_content(&conn, &doc.id).unwrap();
+        assert_eq!(read, json);
+    }
 
-        assert_eq!(text, "hello updated");
+    #[test]
+    fn missing_document_returns_empty_doc() {
+        let conn = test_conn();
+        let result = get_document_content(&conn, "does-not-exist").unwrap();
+        assert_eq!(result, EMPTY_DOC_JSON);
     }
 }
