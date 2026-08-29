@@ -93,8 +93,8 @@ export async function invokeWriteDocumentContent(
   documentId: string,
   contentJson: string,
   contentText: string,
-): Promise<void> {
-  return invoke("write_document_content", { documentId, contentJson, contentText });
+): Promise<Document> {
+  return invoke<Document>("write_document_content", { documentId, contentJson, contentText });
 }
 
 export async function invokeReadDocumentContent(documentId: string): Promise<string> {

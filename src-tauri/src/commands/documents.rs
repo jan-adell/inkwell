@@ -84,12 +84,13 @@ pub async fn write_document_content(
     document_id: String,
     content_json: String,
     content_text: String,
-) -> Result<()> {
+) -> Result<Document> {
     let mut conn = state
         .db
         .lock()
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
-    document_blob::update_document_content(&mut conn, &document_id, &content_json, &content_text)
+    document_blob::update_document_content(&mut conn, &document_id, &content_json, &content_text)?;
+    document_repo::get(&conn, &document_id)
 }
 
 #[tauri::command]

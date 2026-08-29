@@ -11,11 +11,17 @@ pub fn update_document_content(
     content_text: &str,
 ) -> Result<()> {
     let now = chrono::Utc::now().to_rfc3339();
+    let word_count = content_text.split_whitespace().count() as i64;
     let tx = conn.transaction()?;
 
     tx.execute(
         "UPDATE document_contents SET content_json = ?1, content_text = ?2, updated_at = ?3 WHERE document_id = ?4",
         params![content_json, content_text, now, document_id],
+    )?;
+
+    tx.execute(
+        "UPDATE documents SET word_count = ?1, updated_at = ?2 WHERE id = ?3 AND deleted_at IS NULL",
+        params![word_count, now, document_id],
     )?;
 
     tx.execute(

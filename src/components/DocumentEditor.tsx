@@ -9,12 +9,27 @@ import {
   invokeWriteDocumentContent,
 } from "../hooks/useTauri";
 import { useAppStore } from "../store/appStore";
+import type { Document } from "../types/core";
 
 const AUTOSAVE_DELAY_MS = 1000;
 const EMPTY_DOC = '{"type":"doc","content":[]}';
 const FONT_SIZE_KEY = "inkwell:editor-font-size";
 const FONT_SIZES = [0.75, 0.875, 1, 1.125, 1.25, 1.375, 1.5];
 const DEFAULT_FONT_SIZE = 1;
+
+const STATUS_LABELS: Record<Document["status"], string> = {
+  idea: "Idea",
+  draft: "Draft",
+  revision: "Revision",
+  final: "Final",
+};
+
+const STATUS_COLORS: Record<Document["status"], string> = {
+  idea: "text-ivory-ghost",
+  draft: "text-gold/80",
+  revision: "text-amber-400",
+  final: "text-emerald-400",
+};
 
 function loadFontSize(): number {
   try {
@@ -29,9 +44,24 @@ function loadFontSize(): number {
 function saveFontSize(size: number) {
   try {
     localStorage.setItem(FONT_SIZE_KEY, String(size));
-  } catch {
-    // storage unavailable — no-op
-  }
+  } catch {}
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -67,9 +97,7 @@ function Toolbar({ editor, fontSize, onZoomIn, onZoomOut, canZoomIn, canZoomOut 
       title={label}
       className={[
         "p-1.5 rounded transition-colors",
-        active
-          ? "bg-gold/20 text-gold"
-          : "text-ivory-ghost hover:text-ivory hover:bg-ink-muted",
+        active ? "bg-gold/20 text-gold" : "text-ivory-ghost hover:text-ivory hover:bg-ink-muted",
       ].join(" ")}
     >
       <Icon size={14} />
@@ -113,14 +141,13 @@ function Toolbar({ editor, fontSize, onZoomIn, onZoomOut, canZoomIn, canZoomOut 
 
 interface Props {
   documentId: string;
-  title: string;
-  wordCount: number;
+  doc: Document;
 }
 
-export function DocumentEditor({ documentId, title, wordCount }: Props) {
+export function DocumentEditor({ documentId, doc }: Props) {
   const { updateDocument } = useAppStore();
   const [content, setContent] = useState<string | null>(null);
-  const [localTitle, setLocalTitle] = useState(title);
+  const [localTitle, setLocalTitle] = useState(doc.title);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
   const [fontSize, setFontSize] = useState<number>(loadFontSize);
@@ -150,13 +177,11 @@ export function DocumentEditor({ documentId, title, wordCount }: Props) {
   useEffect(() => {
     currentDocId.current = documentId;
     setContent(null);
-    setLocalTitle(title);
+    setLocalTitle(doc.title);
     setSaveState("idle");
     invokeReadDocumentContent(documentId)
       .then((json) => {
-        if (currentDocId.current === documentId) {
-          setContent(json || EMPTY_DOC);
-        }
+        if (currentDocId.current === documentId) setContent(json || EMPTY_DOC);
       })
       .catch(() => {
         if (currentDocId.current === documentId) setContent(EMPTY_DOC);
@@ -164,13 +189,14 @@ export function DocumentEditor({ documentId, title, wordCount }: Props) {
   }, [documentId]);
 
   useEffect(() => {
-    setLocalTitle(title);
-  }, [title]);
+    setLocalTitle(doc.title);
+  }, [doc.title]);
 
   async function flushSave(docId: string, json: string, text: string) {
     setSaveState("saving");
     try {
-      await invokeWriteDocumentContent(docId, json, text);
+      const updated = await invokeWriteDocumentContent(docId, json, text);
+      updateDocument(updated);
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
     } catch {
@@ -196,48 +222,68 @@ export function DocumentEditor({ documentId, title, wordCount }: Props) {
       const snap = pendingSave.current;
       if (snap) {
         pendingSave.current = null;
-        invokeWriteDocumentContent(currentDocId.current, snap.json, snap.text).catch(() => {});
+        invokeWriteDocumentContent(currentDocId.current, snap.json, snap.text)
+          .then(updateDocument)
+          .catch(() => {});
       }
     };
   }, []);
 
   async function handleTitleBlur() {
     const trimmed = localTitle.trim() || "Untitled";
-    if (trimmed === title) return;
+    if (trimmed === doc.title) return;
     try {
       const updated = await invokeUpdateDocument(documentId, { title: trimmed });
       updateDocument(updated);
     } catch {
-      setLocalTitle(title);
+      setLocalTitle(doc.title);
     }
   }
 
   function handleTitleKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") e.currentTarget.blur();
     if (e.key === "Escape") {
-      setLocalTitle(title);
+      setLocalTitle(doc.title);
       e.currentTarget.blur();
     }
+  }
+
+  async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const status = e.target.value as Document["status"];
+    try {
+      const updated = await invokeUpdateDocument(documentId, { status });
+      updateDocument(updated);
+    } catch {}
   }
 
   return (
     <div className="flex flex-col h-full">
       {/* Title bar */}
-      <div className="flex items-center justify-between px-8 py-3 border-b border-ink-border flex-shrink-0">
+      <div className="flex items-center gap-3 px-8 py-3 border-b border-ink-border flex-shrink-0">
         <input
           type="text"
           value={localTitle}
           onChange={(e) => setLocalTitle(e.target.value)}
           onBlur={handleTitleBlur}
           onKeyDown={handleTitleKey}
-          className="
-            flex-1 bg-transparent text-base font-display text-ivory tracking-wide
-            focus:outline-none selectable
-            placeholder:text-ivory-ghost
-          "
+          className="flex-1 bg-transparent text-base font-display text-ivory tracking-wide focus:outline-none selectable placeholder:text-ivory-ghost"
           placeholder="Untitled"
         />
-        <span className="text-xs text-ivory-ghost font-mono flex-shrink-0 ml-4 w-16 text-right">
+        <select
+          value={doc.status}
+          onChange={handleStatusChange}
+          className={[
+            "bg-transparent border-none text-xs font-mono focus:outline-none cursor-pointer flex-shrink-0",
+            STATUS_COLORS[doc.status],
+          ].join(" ")}
+        >
+          {(Object.keys(STATUS_LABELS) as Document["status"][]).map((s) => (
+            <option key={s} value={s} className="bg-ink-deep text-ivory">
+              {STATUS_LABELS[s]}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-ivory-ghost font-mono flex-shrink-0 w-16 text-right">
           {saveState === "saving" && "Saving…"}
           {saveState === "saved" && "Saved"}
           {saveState === "error" && "Save failed"}
@@ -280,9 +326,15 @@ export function DocumentEditor({ documentId, title, wordCount }: Props) {
       </div>
 
       {/* Footer */}
-      <div className="px-8 py-1.5 border-t border-ink-border flex-shrink-0">
+      <div className="px-8 py-1.5 border-t border-ink-border flex-shrink-0 flex items-center gap-4">
         <span className="text-xs text-ivory-ghost font-mono">
-          {wordCount} {wordCount === 1 ? "word" : "words"}
+          {doc.word_count} {doc.word_count === 1 ? "word" : "words"}
+        </span>
+        <span className="text-xs text-ivory-ghost font-mono">
+          Created {fmtDate(doc.created_at)}
+        </span>
+        <span className="text-xs text-ivory-ghost font-mono">
+          Modified {fmtDateTime(doc.updated_at)}
         </span>
       </div>
     </div>

@@ -92,8 +92,7 @@ function MainArea() {
         <DocumentEditor
           key={selectedDocumentId}
           documentId={selectedDocumentId}
-          title={selectedDoc.title}
-          wordCount={selectedDoc.word_count}
+          doc={selectedDoc}
         />
       </main>
     );
