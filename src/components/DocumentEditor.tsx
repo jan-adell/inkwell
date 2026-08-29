@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bold, Italic, Heading1, Heading2 } from "lucide-react";
+import { Bold, Italic, Heading1, Heading2, ZoomIn, ZoomOut } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
 import {
@@ -11,6 +11,27 @@ import { useAppStore } from "../store/appStore";
 
 const AUTOSAVE_DELAY_MS = 1000;
 const EMPTY_DOC = '{"type":"doc","content":[]}';
+const FONT_SIZE_KEY = "inkwell:editor-font-size";
+const FONT_SIZES = [0.75, 0.875, 1, 1.125, 1.25, 1.375, 1.5];
+const DEFAULT_FONT_SIZE = 1;
+
+function loadFontSize(): number {
+  try {
+    const stored = localStorage.getItem(FONT_SIZE_KEY);
+    const parsed = stored ? parseFloat(stored) : NaN;
+    return FONT_SIZES.includes(parsed) ? parsed : DEFAULT_FONT_SIZE;
+  } catch {
+    return DEFAULT_FONT_SIZE;
+  }
+}
+
+function saveFontSize(size: number) {
+  try {
+    localStorage.setItem(FONT_SIZE_KEY, String(size));
+  } catch {
+    // storage unavailable — no-op
+  }
+}
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -18,12 +39,15 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 
 interface ToolbarProps {
   editor: Editor | null;
+  fontSize: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  canZoomIn: boolean;
+  canZoomOut: boolean;
 }
 
-function Toolbar({ editor }: ToolbarProps) {
-  if (!editor) return null;
-
-  const btn = (active: boolean, onClick: () => void, label: string, Icon: React.ElementType) => (
+function Toolbar({ editor, fontSize, onZoomIn, onZoomOut, canZoomIn, canZoomOut }: ToolbarProps) {
+  const fmtBtn = (active: boolean, onClick: () => void, label: string, Icon: React.ElementType) => (
     <button
       onMouseDown={(e) => {
         e.preventDefault();
@@ -41,28 +65,45 @@ function Toolbar({ editor }: ToolbarProps) {
     </button>
   );
 
+  const zoomBtn = (onClick: () => void, label: string, Icon: React.ElementType, enabled: boolean) => (
+    <button
+      onClick={onClick}
+      disabled={!enabled}
+      title={label}
+      className="p-1.5 rounded transition-colors text-ivory-ghost hover:text-ivory hover:bg-ink-muted disabled:opacity-30 disabled:cursor-default"
+    >
+      <Icon size={14} />
+    </button>
+  );
+
   return (
     <div className="flex items-center gap-0.5 px-4 py-1.5 border-b border-ink-border flex-shrink-0">
-      {btn(editor.isActive("bold"), () => editor.chain().focus().toggleBold().run(), "Bold", Bold)}
-      {btn(
-        editor.isActive("italic"),
-        () => editor.chain().focus().toggleItalic().run(),
-        "Italic",
-        Italic,
+      {editor && (
+        <>
+          {fmtBtn(editor.isActive("bold"), () => editor.chain().focus().toggleBold().run(), "Bold", Bold)}
+          {fmtBtn(editor.isActive("italic"), () => editor.chain().focus().toggleItalic().run(), "Italic", Italic)}
+          <div className="w-px h-4 bg-ink-border mx-1" />
+          {fmtBtn(
+            editor.isActive("heading", { level: 1 }),
+            () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+            "Chapter title",
+            Heading1,
+          )}
+          {fmtBtn(
+            editor.isActive("heading", { level: 2 }),
+            () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+            "Scene break",
+            Heading2,
+          )}
+        </>
       )}
-      <div className="w-px h-4 bg-ink-border mx-1" />
-      {btn(
-        editor.isActive("heading", { level: 1 }),
-        () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-        "Chapter title",
-        Heading1,
-      )}
-      {btn(
-        editor.isActive("heading", { level: 2 }),
-        () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-        "Scene break",
-        Heading2,
-      )}
+      <div className="ml-auto flex items-center gap-0.5">
+        {zoomBtn(onZoomOut, "Smaller text", ZoomOut, canZoomOut)}
+        <span className="text-xs text-ivory-ghost font-mono w-9 text-center tabular-nums">
+          {Math.round(fontSize * 100)}%
+        </span>
+        {zoomBtn(onZoomIn, "Larger text", ZoomIn, canZoomIn)}
+      </div>
     </div>
   );
 }
@@ -81,6 +122,25 @@ export function DocumentEditor({ documentId, title, wordCount }: Props) {
   const [localTitle, setLocalTitle] = useState(title);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
+  const [fontSize, setFontSize] = useState<number>(loadFontSize);
+
+  const currentIdx = FONT_SIZES.indexOf(fontSize);
+  const canZoomIn = currentIdx < FONT_SIZES.length - 1;
+  const canZoomOut = currentIdx > 0;
+
+  function zoomIn() {
+    if (!canZoomIn) return;
+    const next = FONT_SIZES[currentIdx + 1];
+    setFontSize(next);
+    saveFontSize(next);
+  }
+
+  function zoomOut() {
+    if (!canZoomOut) return;
+    const next = FONT_SIZES[currentIdx - 1];
+    setFontSize(next);
+    saveFontSize(next);
+  }
 
   const pendingSave = useRef<{ json: string; text: string } | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -184,10 +244,17 @@ export function DocumentEditor({ documentId, title, wordCount }: Props) {
       </div>
 
       {/* Formatting toolbar */}
-      <Toolbar editor={editorInstance} />
+      <Toolbar
+        editor={editorInstance}
+        fontSize={fontSize}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        canZoomIn={canZoomIn}
+        canZoomOut={canZoomOut}
+      />
 
       {/* Editor */}
-      <div className="flex-1 overflow-y-auto px-8 py-4">
+      <div className="flex-1 overflow-y-auto px-8 py-4" style={{ fontSize: `${fontSize}rem` }}>
         <div className="max-w-2xl mx-auto h-full">
           {content === null ? (
             <div className="space-y-2 animate-pulse">
