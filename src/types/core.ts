@@ -82,3 +82,19 @@ export interface KnownProject {
   last_opened_at: string;
 }
 
+export interface OpenProjectResult {
+  project_id: string;
+  project_name: string;
+  schema_version: number;
+  project_path: string;
+}
+
+export interface EntityAsset {
+  id: string;
+  entity_id: string;
+  relative_path: string;
+  label: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
