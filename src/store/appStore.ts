@@ -43,6 +43,7 @@ interface AppState {
   setRootDocuments: (docs: Document[]) => void;
   setChildren: (parentId: string, docs: Document[]) => void;
   addDocument: (doc: Document) => void;
+  updateDocument: (doc: Document) => void;
   removeDocument: (id: string) => void;
   setKnownProjects: (projects: KnownProject[]) => void;
   resetProjectState: () => void;
@@ -91,6 +92,16 @@ export const useAppStore = create<AppState>((set) => ({
           }
         : { rootDocuments: [...s.rootDocuments, doc] }
     ),
+  updateDocument: (doc) =>
+    set((s) => ({
+      rootDocuments: s.rootDocuments.map((d) => (d.id === doc.id ? doc : d)),
+      childrenMap: Object.fromEntries(
+        Object.entries(s.childrenMap).map(([pid, docs]) => [
+          pid,
+          docs.map((d) => (d.id === doc.id ? doc : d)),
+        ]),
+      ),
+    })),
   removeDocument: (id) =>
     set((s) => ({
       rootDocuments: s.rootDocuments.filter((d) => d.id !== id),

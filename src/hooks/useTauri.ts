@@ -60,6 +60,13 @@ export async function invokeDeleteDocument(id: string): Promise<void> {
   return invoke<void>("delete_document", { id });
 }
 
+export async function invokeUpdateDocument(
+  id: string,
+  req: { title?: string; synopsis?: string; status?: string },
+): Promise<Document> {
+  return invoke<Document>("update_document", { id, req });
+}
+
 // ── Entity types ──────────────────────────────────────────────────────────────
 
 export async function invokeListEntityTypes(projectId: string): Promise<EntityType[]> {

@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
+import type { Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
 interface Props {
   mode: "prose" | "notes";
   value: string;
   onChange: (json: string, text: string) => void;
+  onEditorReady?: (editor: Editor | null) => void;
   placeholder?: string;
   className?: string;
 }
@@ -33,9 +35,12 @@ function getPlainText(editor: ReturnType<typeof useEditor>): string {
   return editor.getText();
 }
 
-export function RichTextEditor({ mode, value, onChange, placeholder, className }: Props) {
+export function RichTextEditor({ mode, value, onChange, onEditorReady, placeholder, className }: Props) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+
+  const onEditorReadyRef = useRef(onEditorReady);
+  onEditorReadyRef.current = onEditorReady;
 
   const editor = useEditor({
     extensions: buildExtensions(mode),
@@ -53,6 +58,12 @@ export function RichTextEditor({ mode, value, onChange, placeholder, className }
       const json = JSON.stringify(editor.getJSON());
       const text = getPlainText(editor);
       onChangeRef.current(json, text);
+    },
+    onCreate({ editor }) {
+      onEditorReadyRef.current?.(editor);
+    },
+    onDestroy() {
+      onEditorReadyRef.current?.(null);
     },
   });
 
