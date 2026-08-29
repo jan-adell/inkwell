@@ -38,7 +38,7 @@
   cursor: text;
   color: theme("colors.ivory.DEFAULT");
   font-family: theme("fontFamily.body");
-  font-size: 1rem;
+  font-size: 1em;
   line-height: 1.75;
 }
 

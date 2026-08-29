@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bold, Italic, Heading1, Heading2, ZoomIn, ZoomOut } from "lucide-react";
 import type { Editor } from "@tiptap/react";
+import { useEditorState } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
 import {
   invokeReadDocumentContent,
@@ -47,6 +48,16 @@ interface ToolbarProps {
 }
 
 function Toolbar({ editor, fontSize, onZoomIn, onZoomOut, canZoomIn, canZoomOut }: ToolbarProps) {
+  const marks = useEditorState({
+    editor,
+    selector: (ctx) => ({
+      bold: ctx.editor?.isActive("bold") ?? false,
+      italic: ctx.editor?.isActive("italic") ?? false,
+      h1: ctx.editor?.isActive("heading", { level: 1 }) ?? false,
+      h2: ctx.editor?.isActive("heading", { level: 2 }) ?? false,
+    }),
+  });
+
   const fmtBtn = (active: boolean, onClick: () => void, label: string, Icon: React.ElementType) => (
     <button
       onMouseDown={(e) => {
@@ -78,23 +89,13 @@ function Toolbar({ editor, fontSize, onZoomIn, onZoomOut, canZoomIn, canZoomOut 
 
   return (
     <div className="flex items-center gap-0.5 px-4 py-1.5 border-b border-ink-border flex-shrink-0">
-      {editor && (
+      {editor && marks && (
         <>
-          {fmtBtn(editor.isActive("bold"), () => editor.chain().focus().toggleBold().run(), "Bold", Bold)}
-          {fmtBtn(editor.isActive("italic"), () => editor.chain().focus().toggleItalic().run(), "Italic", Italic)}
+          {fmtBtn(marks.bold, () => editor.chain().focus().toggleBold().run(), "Bold", Bold)}
+          {fmtBtn(marks.italic, () => editor.chain().focus().toggleItalic().run(), "Italic", Italic)}
           <div className="w-px h-4 bg-ink-border mx-1" />
-          {fmtBtn(
-            editor.isActive("heading", { level: 1 }),
-            () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-            "Chapter title",
-            Heading1,
-          )}
-          {fmtBtn(
-            editor.isActive("heading", { level: 2 }),
-            () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-            "Scene break",
-            Heading2,
-          )}
+          {fmtBtn(marks.h1, () => editor.chain().focus().toggleHeading({ level: 1 }).run(), "Chapter title", Heading1)}
+          {fmtBtn(marks.h2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "Scene break", Heading2)}
         </>
       )}
       <div className="ml-auto flex items-center gap-0.5">
