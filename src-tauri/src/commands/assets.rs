@@ -24,18 +24,38 @@ pub async fn add_entity_asset(
             .ok_or_else(|| InkwellError::Internal("No project is open".into()))?
     };
 
+    if entity_id.len() != 26 || !entity_id.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err(InkwellError::Validation("Invalid entity ID format".into()));
+    }
+
     let src = Path::new(&source_path);
     let ext = src
         .extension()
         .and_then(|e| e.to_str())
-        .unwrap_or("bin")
+        .unwrap_or("")
         .to_lowercase();
+    const ALLOWED: &[&str] = &[
+        "jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif", "svg",
+    ];
+    if !ALLOWED.contains(&ext.as_str()) {
+        return Err(InkwellError::Validation(format!(
+            "Unsupported image format: .{ext}"
+        )));
+    }
+
     let asset_ulid = ulid::Ulid::new().to_string();
     let relative_path = format!("assets/entities/{entity_id}/{asset_ulid}.{ext}");
 
     let dest = project_path.join(&relative_path);
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
+        let canonical_parent = parent.canonicalize()?;
+        let canonical_project = project_path.canonicalize()?;
+        if !canonical_parent.starts_with(&canonical_project) {
+            return Err(InkwellError::Validation(
+                "Asset path escapes project directory".into(),
+            ));
+        }
     }
     std::fs::copy(src, &dest)?;
 
