@@ -1,4 +1,5 @@
 pub mod document_repo;
+pub mod entity_asset_repo;
 pub mod entity_repo;
 pub mod entity_type_repo;
 pub mod field_definition_repo;
@@ -8,7 +9,6 @@ pub mod project_repo;
 pub mod relation_repo;
 pub mod relation_type_repo;
 
-pub mod blob_store;
 pub mod document_blob;
 
 pub mod connection_manager;
