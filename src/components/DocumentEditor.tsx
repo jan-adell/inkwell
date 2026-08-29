@@ -14,8 +14,15 @@ import type { Document } from "../types/core";
 const AUTOSAVE_DELAY_MS = 1000;
 const EMPTY_DOC = '{"type":"doc","content":[]}';
 
-// Page dimensions — fixed; zoom scales the whole page, not the font.
-const PAGE_WIDTH_PX = 680;
+// DIN A5 page (148 × 210 mm, ratio 1:√2).
+// Margins follow the Bringhurst 9-unit grid:
+//   inner (left) = 1/9 page-width ≈ 16 mm
+//   outer (right) = 2/9 page-width ≈ 33 mm
+//   head (top)   = 1/9 page-height ≈ 23 mm
+//   foot (bottom)= 2/9 page-height ≈ 47 mm
+const PAGE_W = "148mm";
+const PAGE_MIN_H = "210mm";
+const PAGE_MARGIN = "23mm 33mm 47mm 16mm"; // top right bottom left
 
 const ZOOM_KEY = "inkwell:editor-zoom";
 const ZOOM_LEVELS = [0.5, 0.625, 0.75, 0.875, 1.0, 1.25, 1.5, 1.75, 2.0];
@@ -151,7 +158,7 @@ export function DocumentEditor({ documentId, doc }: Props) {
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
   const [zoom, setZoom] = useState<number>(loadZoom);
-  const [pageHeight, setPageHeight] = useState(0);
+  const [pagePx, setPagePx] = useState({ w: 0, h: 0 });
 
   const pageRef = useRef<HTMLDivElement>(null);
   const pendingSave = useRef<{ json: string; text: string } | null>(null);
@@ -176,12 +183,14 @@ export function DocumentEditor({ documentId, doc }: Props) {
     saveZoom(next);
   }
 
-  // Observe the natural (unscaled) page height so the scroll wrapper can
-  // be sized correctly after transform: scale() is applied.
+  // Track the natural (unscaled) page dimensions so the scroll wrapper
+  // can be sized to naturalDim × zoom after transform: scale().
   useEffect(() => {
     const el = pageRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setPageHeight(el.offsetHeight));
+    const ro = new ResizeObserver(() =>
+      setPagePx({ w: el.offsetWidth, h: el.offsetHeight }),
+    );
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -258,10 +267,9 @@ export function DocumentEditor({ documentId, doc }: Props) {
     } catch {}
   }
 
-  // The outer scroll wrapper must be at least as tall as the scaled page
-  // so the browser scroll bar reflects the true visual content height.
-  const PADDING_PX = 64; // top + bottom gap around page
-  const wrapperHeight = pageHeight > 0 ? pageHeight * zoom + PADDING_PX * 2 : "100%";
+  const GAP = 48; // px of dark space around the page card (each side)
+  const wrapperH = pagePx.h > 0 ? pagePx.h * zoom + GAP * 2 : "100%";
+  const wrapperMinW = pagePx.w > 0 ? pagePx.w * zoom + GAP * 2 : "100%";
 
   return (
     <div className="flex flex-col h-full">
@@ -302,31 +310,34 @@ export function DocumentEditor({ documentId, doc }: Props) {
         canZoomOut={canZoomOut}
       />
 
-      {/* Page canvas — dark area surrounding the page card */}
-      <div className="flex-1 overflow-y-auto bg-[#111118]">
-        {/* Scroll spacer — height matches scaled page + padding */}
-        <div style={{ minHeight: wrapperHeight }} className="relative flex justify-center">
-          {/* Page card — fixed width, scaled via transform */}
+      {/* Page canvas — dark surround */}
+      <div className="flex-1 overflow-auto bg-[#111118]">
+        {/* Spacer sized to scaled page + gap so scrollbars are correct */}
+        <div
+          style={{ minHeight: wrapperH, minWidth: wrapperMinW }}
+          className="relative flex justify-center"
+        >
+          {/* Page card — DIN A5, scaled via transform (no reflow on zoom) */}
           <div
             ref={pageRef}
             style={{
-              width: PAGE_WIDTH_PX,
+              width: PAGE_W,
+              minHeight: PAGE_MIN_H,
               transform: `scale(${zoom})`,
               transformOrigin: "top center",
               position: "absolute",
-              top: PADDING_PX,
+              top: GAP,
             }}
           >
-            <div className="bg-ink-deep border border-ink-border/60 shadow-[0_4px_32px_rgba(0,0,0,0.6)] rounded-sm">
-              {/* Page margins */}
-              <div className="px-16 pt-16 pb-20">
-                {content === null ? (
-                  <div className="space-y-2.5 animate-pulse">
-                    {[...Array(6)].map((_, i) => (
-                      <div key={i} className="h-3 bg-ink-surface rounded" style={{ width: `${65 + (i % 4) * 9}%` }} />
-                    ))}
-                  </div>
-                ) : (
+            <div className="bg-ink-deep border border-ink-border/40 shadow-[0_8px_40px_rgba(0,0,0,0.7)]">
+              {content === null ? (
+                <div style={{ padding: PAGE_MARGIN }} className="space-y-2.5 animate-pulse">
+                  {[...Array(7)].map((_, i) => (
+                    <div key={i} className="h-3 bg-ink-surface rounded" style={{ width: `${60 + (i % 4) * 10}%` }} />
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: PAGE_MARGIN }}>
                   <RichTextEditor
                     mode="prose"
                     value={content}
@@ -334,8 +345,8 @@ export function DocumentEditor({ documentId, doc }: Props) {
                     onEditorReady={setEditorInstance}
                     placeholder="Start writing…"
                   />
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

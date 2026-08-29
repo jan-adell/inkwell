@@ -38,8 +38,8 @@
   cursor: text;
   color: theme("colors.ivory.DEFAULT");
   font-family: theme("fontFamily.body");
-  font-size: 1em;
-  line-height: 1.75;
+  font-size: 11pt;   /* trade-paperback body: 10–12pt range */
+  line-height: 1.5;  /* book-standard leading */
 }
 
 .prose-editor p {
@@ -52,21 +52,22 @@
 
 .prose-prose h1 {
   font-family: theme("fontFamily.display");
-  font-size: 1.5rem;
+  font-size: 18pt;   /* chapter heading — ~1.6× body */
   font-weight: 600;
   color: theme("colors.gold.DEFAULT");
-  margin-top: 2rem;
-  margin-bottom: 0.5rem;
+  margin-top: 3em;
+  margin-bottom: 1em;
   letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .prose-prose h2 {
   font-family: theme("fontFamily.display");
-  font-size: 1.125rem;
+  font-size: 13pt;   /* scene heading — ~1.2× body */
   font-weight: 500;
   color: theme("colors.ivory.dim");
-  margin-top: 1.5rem;
-  margin-bottom: 0.5rem;
+  margin-top: 2em;
+  margin-bottom: 0.75em;
   letter-spacing: 0.015em;
 }
 
