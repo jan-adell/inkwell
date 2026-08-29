@@ -5,6 +5,7 @@ pub struct OpenProjectResult {
     pub project_id: String,
     pub project_name: String,
     pub schema_version: u32,
+    pub project_path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
