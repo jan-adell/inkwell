@@ -14,19 +14,19 @@ import type { Document } from "../types/core";
 const AUTOSAVE_DELAY_MS = 1000;
 const EMPTY_DOC = '{"type":"doc","content":[]}';
 
-// DIN A5 page (148 × 210 mm, ratio 1:√2).
+// DIN A4 page (210 × 297 mm, ratio 1:√2).
 // Margins follow the Bringhurst 9-unit grid:
-//   inner (left) = 1/9 page-width ≈ 16 mm
-//   outer (right) = 2/9 page-width ≈ 33 mm
-//   head (top)   = 1/9 page-height ≈ 23 mm
-//   foot (bottom)= 2/9 page-height ≈ 47 mm
-const PAGE_W = "148mm";
-const PAGE_MIN_H = "210mm";
-const PAGE_MARGIN = "23mm 33mm 47mm 16mm"; // top right bottom left
+//   inner (left) = 1/9 page-width ≈ 23 mm
+//   outer (right) = 2/9 page-width ≈ 47 mm
+//   head (top)   = 1/9 page-height ≈ 33 mm
+//   foot (bottom)= 2/9 page-height ≈ 66 mm
+const PAGE_W = "210mm";
+const PAGE_MIN_H = "297mm";
+const PAGE_MARGIN = "33mm 47mm 66mm 23mm"; // top right bottom left
 
 const ZOOM_KEY = "inkwell:editor-zoom";
 const ZOOM_LEVELS = [0.5, 0.625, 0.75, 0.875, 1.0, 1.25, 1.5, 1.75, 2.0];
-const DEFAULT_ZOOM = 1.5;
+const DEFAULT_ZOOM = 1.0;
 
 const STATUS_LABELS: Record<Document["status"], string> = {
   idea: "Idea",
