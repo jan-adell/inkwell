@@ -10,16 +10,9 @@ export interface ProjectMeta {
   app_version: string;
 }
 
-export interface PragmaStatus {
-  wal_enabled: boolean;
-  foreign_keys_enabled: boolean;
-}
-
 export interface InitResult {
   ok: boolean;
-  schema_version: number;
   message: string;
-  pragma_status: PragmaStatus | null;
 }
 
 export type CommandResult<T> =
