@@ -26,7 +26,7 @@ const PAGE_MARGIN = "23mm 33mm 47mm 16mm"; // top right bottom left
 
 const ZOOM_KEY = "inkwell:editor-zoom";
 const ZOOM_LEVELS = [0.5, 0.625, 0.75, 0.875, 1.0, 1.25, 1.5, 1.75, 2.0];
-const DEFAULT_ZOOM = 1.0;
+const DEFAULT_ZOOM = 1.5;
 
 const STATUS_LABELS: Record<Document["status"], string> = {
   idea: "Idea",
