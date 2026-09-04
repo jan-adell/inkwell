@@ -30,3 +30,65 @@
     @apply bg-ink-deep border border-ink-border rounded-lg;
   }
 }
+
+/* ── TipTap / ProseMirror editor styles ─────────────────────────────────── */
+
+.prose-editor {
+  user-select: text;
+  cursor: text;
+  color: theme("colors.ivory.DEFAULT");
+  font-family: theme("fontFamily.body");
+  font-size: 9pt;    /* mass-market paperback range: 8.5–10pt */
+  line-height: 1.5;
+}
+
+.prose-editor p {
+  margin-bottom: 0.5em;
+}
+
+.prose-editor p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-prose h1 {
+  font-family: theme("fontFamily.display");
+  font-size: 14pt;   /* ~1.55× body */
+  font-weight: 600;
+  color: theme("colors.gold.DEFAULT");
+  margin-top: 3em;
+  margin-bottom: 1em;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.prose-prose h2 {
+  font-family: theme("fontFamily.display");
+  font-size: 10.5pt; /* ~1.17× body */
+  font-weight: 500;
+  color: theme("colors.ivory.dim");
+  margin-top: 2em;
+  margin-bottom: 0.75em;
+  letter-spacing: 0.015em;
+}
+
+.prose-editor strong {
+  font-weight: 600;
+  color: theme("colors.ivory.DEFAULT");
+}
+
+.prose-editor em {
+  font-style: italic;
+  color: theme("colors.ivory.dim");
+}
+
+.prose-editor.ProseMirror-focused {
+  outline: none;
+}
+
+.prose-editor[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: theme("colors.ivory.ghost");
+  pointer-events: none;
+  float: left;
+  height: 0;
+}

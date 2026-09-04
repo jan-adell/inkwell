@@ -9,6 +9,7 @@ interface AppState {
   initStatus: string;
   initError: string | null;
   projectId: string | null;
+  projectPath: string | null;
 
   // ── Navigation ─────────────────────────────────────────────────────────
   activeView: ActiveView;
@@ -35,12 +36,14 @@ interface AppState {
   setInitStatus: (status: string) => void;
   setInitError: (error: string | null) => void;
   setProjectId: (id: string | null) => void;
+  setProjectPath: (path: string | null) => void;
   setActiveView: (view: ActiveView) => void;
   setSelectedDocumentId: (id: string | null) => void;
   setSelectedEntityId: (id: string | null) => void;
   setRootDocuments: (docs: Document[]) => void;
   setChildren: (parentId: string, docs: Document[]) => void;
   addDocument: (doc: Document) => void;
+  updateDocument: (doc: Document) => void;
   removeDocument: (id: string) => void;
   setKnownProjects: (projects: KnownProject[]) => void;
   resetProjectState: () => void;
@@ -55,6 +58,7 @@ export const useAppStore = create<AppState>((set) => ({
   initStatus: "Starting…",
   initError: null,
   projectId: null,
+  projectPath: null,
   activeView: "writing",
   selectedDocumentId: null,
   selectedEntityId: null,
@@ -70,6 +74,7 @@ export const useAppStore = create<AppState>((set) => ({
   setInitStatus: (status) => set({ initStatus: status }),
   setInitError: (error) => set({ initError: error }),
   setProjectId: (id) => set({ projectId: id }),
+  setProjectPath: (path) => set({ projectPath: path }),
   setActiveView: (view) => set({ activeView: view }),
   setSelectedDocumentId: (id) => set({ selectedDocumentId: id }),
   setSelectedEntityId: (id) => set({ selectedEntityId: id }),
@@ -87,6 +92,16 @@ export const useAppStore = create<AppState>((set) => ({
           }
         : { rootDocuments: [...s.rootDocuments, doc] }
     ),
+  updateDocument: (doc) =>
+    set((s) => ({
+      rootDocuments: s.rootDocuments.map((d) => (d.id === doc.id ? doc : d)),
+      childrenMap: Object.fromEntries(
+        Object.entries(s.childrenMap).map(([pid, docs]) => [
+          pid,
+          docs.map((d) => (d.id === doc.id ? doc : d)),
+        ]),
+      ),
+    })),
   removeDocument: (id) =>
     set((s) => ({
       rootDocuments: s.rootDocuments.filter((d) => d.id !== id),
@@ -101,6 +116,7 @@ export const useAppStore = create<AppState>((set) => ({
       entitiesByType: {},
       selectedDocumentId: null,
       selectedEntityId: null,
+      projectPath: null,
     }),
   setEntityTypes: (types) => set({ entityTypes: types }),
   setEntitiesForType: (typeId, entities) =>

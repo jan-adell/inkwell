@@ -2,6 +2,7 @@ import { FileText, Map, Clock, Search, Settings } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { CreateEntityModal } from "../components/CreateEntityModal";
 import { CreateDocumentModal } from "../components/CreateDocumentModal";
+import { DocumentEditor } from "../components/DocumentEditor";
 import { useAppStore } from "../store/appStore";
 
 // ── Inspector (right panel) ──────────────────────────────────────────────────
@@ -50,7 +51,10 @@ function Inspector() {
 // ── Main area (centre panel) ─────────────────────────────────────────────────
 
 function MainArea() {
-  const { selectedDocumentId, activeView } = useAppStore();
+  const { selectedDocumentId, activeView, rootDocuments, childrenMap } = useAppStore();
+
+  const allDocs = [...rootDocuments, ...Object.values(childrenMap).flat()];
+  const selectedDoc = allDocs.find((d) => d.id === selectedDocumentId);
 
   if (!selectedDocumentId && activeView === "writing") {
     return (
@@ -82,26 +86,23 @@ function MainArea() {
     );
   }
 
+  if (selectedDocumentId && selectedDoc) {
+    return (
+      <main className="flex-1 flex flex-col bg-ink-void overflow-hidden">
+        <DocumentEditor
+          key={selectedDocumentId}
+          documentId={selectedDocumentId}
+          doc={selectedDoc}
+        />
+      </main>
+    );
+  }
+
   return (
-    <main className="flex-1 flex flex-col bg-ink-void overflow-hidden">
-      {/* Editor placeholder — TipTap will live here in a future implementation */}
-      <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full py-12 px-8">
-        <div className="mb-8">
-          <div className="h-8 w-3/4 bg-ink-surface rounded animate-pulse mb-3" />
-          <div className="h-4 w-1/4 bg-ink-muted rounded animate-pulse" />
-        </div>
-        <div className="space-y-3">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className="h-4 bg-ink-surface rounded animate-pulse"
-              style={{ width: `${70 + (i % 3) * 10}%`, opacity: 0.4 + i * 0.05 }}
-            />
-          ))}
-        </div>
-        <p className="mt-12 text-xs text-ivory-ghost text-center font-mono">
-          Editor coming in the next implementation
-        </p>
+    <main className="flex-1 flex flex-col items-center justify-center bg-ink-void">
+      <div className="text-center max-w-sm">
+        <FileText size={32} className="text-ivory-ghost opacity-20 mx-auto mb-3" />
+        <p className="text-sm text-ivory-ghost">Select a document to start writing.</p>
       </div>
     </main>
   );

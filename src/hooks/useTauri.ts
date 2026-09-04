@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Document, Entity, EntityType, InitResult, KnownProject } from "../types/core";
+import type { Document, Entity, EntityAsset, EntityType, InitResult, KnownProject, OpenProjectResult } from "../types/core";
 
 export async function invokeInitializeCore(): Promise<InitResult> {
   return invoke<InitResult>("initialize_core");
@@ -18,21 +18,15 @@ export async function invokeExportProject(
   return invoke("export_project", { projectId, destPath });
 }
 
-export async function invokeImportProject(
-  archivePath: string,
-): Promise<{ project_id: string; project_name: string; schema_version: number }> {
+export async function invokeImportProject(archivePath: string): Promise<OpenProjectResult> {
   return invoke("import_project", { archivePath });
 }
 
-export async function invokeCreateProject(
-  name: string,
-): Promise<{ project_id: string; project_name: string; schema_version: number }> {
+export async function invokeCreateProject(name: string): Promise<OpenProjectResult> {
   return invoke("create_project", { name });
 }
 
-export async function invokeOpenProject(
-  path: string,
-): Promise<{ project_id: string; project_name: string; schema_version: number }> {
+export async function invokeOpenProject(path: string): Promise<OpenProjectResult> {
   return invoke("open_project", { path });
 }
 
@@ -66,6 +60,13 @@ export async function invokeDeleteDocument(id: string): Promise<void> {
   return invoke<void>("delete_document", { id });
 }
 
+export async function invokeUpdateDocument(
+  id: string,
+  req: { title?: string; synopsis?: string; status?: string },
+): Promise<Document> {
+  return invoke<Document>("update_document", { id, req });
+}
+
 // ── Entity types ──────────────────────────────────────────────────────────────
 
 export async function invokeListEntityTypes(projectId: string): Promise<EntityType[]> {
@@ -86,3 +87,48 @@ export async function invokeCreateEntity(
   return invoke<Entity>("create_entity", { projectId, req });
 }
 
+// ── Document content ──────────────────────────────────────────────────────────
+
+export async function invokeWriteDocumentContent(
+  documentId: string,
+  contentJson: string,
+  contentText: string,
+): Promise<Document> {
+  return invoke<Document>("write_document_content", { documentId, contentJson, contentText });
+}
+
+export async function invokeReadDocumentContent(documentId: string): Promise<string> {
+  return invoke<string>("read_document_content", { documentId });
+}
+
+// ── Entity notes ──────────────────────────────────────────────────────────────
+
+export async function invokeWriteEntityNotes(
+  entityId: string,
+  notesJson: string,
+  notesText: string,
+): Promise<void> {
+  return invoke("write_entity_notes", { entityId, notesJson, notesText });
+}
+
+export async function invokeReadEntityNotes(entityId: string): Promise<string | null> {
+  return invoke<string | null>("read_entity_notes", { entityId });
+}
+
+// ── Entity assets ─────────────────────────────────────────────────────────────
+
+export async function invokeAddEntityAsset(
+  entityId: string,
+  sourcePath: string,
+  label?: string,
+): Promise<EntityAsset> {
+  return invoke<EntityAsset>("add_entity_asset", { entityId, sourcePath, label: label ?? null });
+}
+
+export async function invokeListEntityAssets(entityId: string): Promise<EntityAsset[]> {
+  return invoke<EntityAsset[]>("list_entity_assets", { entityId });
+}
+
+export async function invokeDeleteEntityAsset(assetId: string): Promise<void> {
+  return invoke("delete_entity_asset", { assetId });
+}

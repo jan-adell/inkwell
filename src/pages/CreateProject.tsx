@@ -5,7 +5,7 @@ import { invokeCreateProject, invokeImportProject } from "../hooks/useTauri";
 
 interface Props {
   onCancel: () => void;
-  onCreated: (projectId: string) => void;
+  onCreated: (projectId: string, projectPath: string) => void;
 }
 
 export function CreateProject({ onCancel, onCreated }: Props) {
@@ -24,7 +24,7 @@ export function CreateProject({ onCancel, onCreated }: Props) {
     setCreating(true);
     try {
       const result = await invokeCreateProject(trimmed);
-      onCreated(result.project_id);
+      onCreated(result.project_id, result.project_path);
     } catch (e) {
       setError(e instanceof Error ? e.message : typeof e === "string" ? e : "Failed to create project.");
     } finally {
@@ -43,7 +43,7 @@ export function CreateProject({ onCancel, onCreated }: Props) {
     try {
       const archivePath = Array.isArray(selected) ? selected[0] : selected;
       const result = await invokeImportProject(archivePath);
-      onCreated(result.project_id);
+      onCreated(result.project_id, result.project_path);
     } catch (e) {
       setError(e instanceof Error ? e.message : typeof e === "string" ? e : "Failed to import project.");
     } finally {

@@ -10,16 +10,9 @@ export interface ProjectMeta {
   app_version: string;
 }
 
-export interface PragmaStatus {
-  wal_enabled: boolean;
-  foreign_keys_enabled: boolean;
-}
-
 export interface InitResult {
   ok: boolean;
-  schema_version: number;
   message: string;
-  pragma_status: PragmaStatus | null;
 }
 
 export type CommandResult<T> =
@@ -80,5 +73,21 @@ export interface KnownProject {
   name: string;
   path: string;
   last_opened_at: string;
+}
+
+export interface OpenProjectResult {
+  project_id: string;
+  project_name: string;
+  schema_version: number;
+  project_path: string;
+}
+
+export interface EntityAsset {
+  id: string;
+  entity_id: string;
+  relative_path: string;
+  label: string | null;
+  sort_order: number;
+  created_at: string;
 }
 

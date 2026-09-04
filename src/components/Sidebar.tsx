@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BookOpen, FileText, Plus, ChevronRight, ChevronDown,
   Feather, Globe, Layers, Trash2,
@@ -10,6 +10,7 @@ import {
   invokeCreateDocument,
   invokeDeleteDocument,
   invokeListEntityTypes,
+  invokeUpdateDocument,
 } from "../hooks/useTauri";
 import type { Document } from "../types/core";
 
@@ -30,15 +31,27 @@ const NODE_ICON: Record<string, React.ElementType> = {
 function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
   const {
     selectedDocumentId, setSelectedDocumentId,
-    childrenMap, setChildren, removeDocument,
+    childrenMap, setChildren, removeDocument, updateDocument,
   } = useAppStore();
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(doc.title);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const children = childrenMap[doc.id] ?? null;
   const hasChildren = doc.node_type === "novel" || doc.node_type === "part" || doc.node_type === "folder";
   const isSelected = selectedDocumentId === doc.id;
   const Icon = NODE_ICON[doc.node_type] ?? FileText;
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  // Keep draft in sync if the title changes externally (e.g. from the editor bar).
+  useEffect(() => {
+    if (!editing) setDraftTitle(doc.title);
+  }, [doc.title, editing]);
 
   async function toggle() {
     if (!hasChildren) return;
@@ -60,16 +73,40 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
     removeDocument(doc.id);
   }
 
+  function startEditing(e: React.MouseEvent) {
+    e.stopPropagation();
+    setDraftTitle(doc.title);
+    setEditing(true);
+  }
+
+  async function commitRename() {
+    const trimmed = draftTitle.trim() || doc.title;
+    setEditing(false);
+    if (trimmed === doc.title) return;
+    try {
+      const updated = await invokeUpdateDocument(doc.id, { title: trimmed });
+      updateDocument(updated);
+    } catch {
+      setDraftTitle(doc.title);
+    }
+  }
+
+  function handleInputKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") e.currentTarget.blur();
+    if (e.key === "Escape") { setDraftTitle(doc.title); setEditing(false); }
+  }
+
   return (
     <div>
       <div
-        className={`group flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer text-sm transition-colors
-          ${isSelected
+        className={`group flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors
+          ${editing ? "bg-ink-muted" : "cursor-pointer"}
+          ${isSelected && !editing
             ? "bg-gold/20 text-gold"
             : "text-ivory-dim hover:bg-ink-muted hover:text-ivory"
           }`}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
-        onClick={() => { setSelectedDocumentId(doc.id); toggle(); }}
+        onClick={() => { if (!editing) { setSelectedDocumentId(doc.id); toggle(); } }}
       >
         {hasChildren ? (
           <span className="w-3 h-3 flex-shrink-0 text-ivory-ghost">
@@ -85,14 +122,35 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
           <span className="w-3" />
         )}
         <Icon size={13} className="flex-shrink-0 opacity-60" />
-        <span className="flex-1 truncate">{doc.title}</span>
-        <button
-          onClick={handleDelete}
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-ivory-ghost hover:text-crimson transition-all"
-          title="Delete"
-        >
-          <Trash2 size={11} />
-        </button>
+
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={draftTitle}
+            onChange={(e) => setDraftTitle(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={handleInputKey}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 min-w-0 bg-transparent text-ivory text-sm focus:outline-none selectable"
+          />
+        ) : (
+          <span
+            className="flex-1 truncate"
+            onDoubleClick={startEditing}
+          >
+            {doc.title}
+          </span>
+        )}
+
+        {!editing && (
+          <button
+            onClick={handleDelete}
+            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-ivory-ghost hover:text-crimson transition-all"
+            title="Delete"
+          >
+            <Trash2 size={11} />
+          </button>
+        )}
       </div>
 
       {expanded && children && children.length > 0 && (

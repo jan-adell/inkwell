@@ -157,10 +157,17 @@ pub async fn import_project(
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     *conn_guard = new_conn;
 
+    let mut path_guard = state
+        .project_path
+        .lock()
+        .map_err(|_| InkwellError::Internal("project_path lock poisoned".into()))?;
+    *path_guard = Some(project_dir.clone());
+
     Ok(OpenProjectResult {
         project_id,
         project_name,
         schema_version,
+        project_path: project_dir.to_string_lossy().into_owned(),
     })
 }
 
@@ -202,6 +209,11 @@ pub async fn delete_project(
             .is_ok();
         if is_active {
             *conn_guard = Connection::open_in_memory()?;
+            let mut path_guard = state
+                .project_path
+                .lock()
+                .map_err(|_| InkwellError::Internal("project_path lock poisoned".into()))?;
+            *path_guard = None;
         }
     }
 
@@ -273,10 +285,17 @@ pub async fn create_project(
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     *conn_guard = new_conn;
 
+    let mut path_guard = state
+        .project_path
+        .lock()
+        .map_err(|_| InkwellError::Internal("project_path lock poisoned".into()))?;
+    *path_guard = Some(project_dir.clone());
+
     Ok(OpenProjectResult {
         project_id,
         project_name: name,
         schema_version,
+        project_path: project_dir.to_string_lossy().into_owned(),
     })
 }
 
@@ -318,10 +337,17 @@ pub async fn open_project(
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     *conn_guard = new_conn;
 
+    let mut path_guard = state
+        .project_path
+        .lock()
+        .map_err(|_| InkwellError::Internal("project_path lock poisoned".into()))?;
+    *path_guard = Some(project_path.clone());
+
     Ok(OpenProjectResult {
         project_id,
         project_name,
         schema_version,
+        project_path: project_path.to_string_lossy().into_owned(),
     })
 }
 

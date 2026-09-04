@@ -54,8 +54,15 @@ pub fn run() {
             commands::documents::list_child_documents,
             commands::documents::update_document,
             commands::documents::delete_document,
-            commands::documents::write_document_blob,
-            commands::documents::read_document_blob,
+            commands::documents::write_document_content,
+            commands::documents::read_document_content,
+            // Entities — notes
+            commands::entities::write_entity_notes,
+            commands::entities::read_entity_notes,
+            // Entity assets
+            commands::assets::add_entity_asset,
+            commands::assets::list_entity_assets,
+            commands::assets::delete_entity_asset,
             // Projects
             commands::projects::create_project,
             commands::projects::delete_project,

@@ -30,6 +30,11 @@ pub fn all_migrations() -> Vec<Migration> {
             name: "external_blobs",
             sql: include_str!("migrations/002_external_blobs.sql"),
         },
+        Migration {
+            version: 3,
+            name: "editor_and_assets",
+            sql: include_str!("migrations/003_editor_and_assets.sql"),
+        },
     ]
 }
 

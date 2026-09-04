@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::error::{InkwellError, Result};
 use crate::models::entity::{CreateEntityRequest, Entity, UpdateEntityRequest};
@@ -151,6 +151,37 @@ pub fn delete(conn: &Connection, id: &str) -> Result<()> {
         params![now, id],
     )?;
     Ok(())
+}
+
+pub fn update_notes(
+    conn: &Connection,
+    entity_id: &str,
+    notes_json: &str,
+    notes_text: &str,
+) -> Result<()> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let rows = conn.execute(
+        "UPDATE entities SET notes_json=?1, notes_text=?2, updated_at=?3
+         WHERE id=?4 AND deleted_at IS NULL",
+        params![notes_json, notes_text, now, entity_id],
+    )?;
+    if rows == 0 {
+        return Err(InkwellError::NotFound(format!(
+            "Entity '{entity_id}' not found"
+        )));
+    }
+    Ok(())
+}
+
+pub fn get_notes(conn: &Connection, entity_id: &str) -> Result<Option<String>> {
+    conn.query_row(
+        "SELECT notes_json FROM entities WHERE id=?1 AND deleted_at IS NULL",
+        params![entity_id],
+        |r| r.get::<_, Option<String>>(0),
+    )
+    .optional()
+    .map_err(InkwellError::Database)
+    .map(|opt| opt.flatten())
 }
 
 #[cfg(test)]

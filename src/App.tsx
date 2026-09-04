@@ -21,7 +21,7 @@ type Screen = "library" | "create" | "shell";
  * Navigation is local state — no routing library needed at this stage.
  */
 export default function App() {
-  const { coreInitialized, setProjectId, setKnownProjects, resetProjectState } = useAppStore();
+  const { coreInitialized, setProjectId, setProjectPath, setKnownProjects, resetProjectState } = useAppStore();
   const [screen, setScreen] = useReducer(
     (_prev: Screen, next: Screen) => next,
     "library" as Screen
@@ -36,9 +36,10 @@ export default function App() {
     return (
       <ProjectLibrary
         onOpenProject={async (project) => {
-          await invokeOpenProject(project.path);
+          const result = await invokeOpenProject(project.path);
           resetProjectState();
-          setProjectId(project.project_id);
+          setProjectId(result.project_id);
+          setProjectPath(result.project_path);
           const updated = await invokeListKnownProjects();
           setKnownProjects(updated);
           setScreen("shell");
@@ -52,9 +53,10 @@ export default function App() {
     return (
       <CreateProject
         onCancel={() => setScreen("library")}
-        onCreated={async (projectId) => {
+        onCreated={async (projectId, projectPath) => {
           resetProjectState();
           setProjectId(projectId);
+          setProjectPath(projectPath);
           const updated = await invokeListKnownProjects();
           setKnownProjects(updated);
           setScreen("shell");

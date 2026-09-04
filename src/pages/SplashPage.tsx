@@ -6,7 +6,7 @@ import { invokeInitializeCore, invokeListKnownProjects } from "../hooks/useTauri
 export function SplashPage() {
   const {
     initStatus, initError,
-    setCoreInitialized, setInitStatus, setInitError, setProjectId, setKnownProjects,
+    setCoreInitialized, setInitStatus, setInitError, setKnownProjects,
   } = useAppStore();
 
   useEffect(() => {
@@ -20,7 +20,6 @@ export function SplashPage() {
           const projects = await invokeListKnownProjects();
           if (cancelled) return;
           setKnownProjects(projects);
-          setProjectId("default");
           setCoreInitialized(true);
         } else {
           setInitError(result.message);
