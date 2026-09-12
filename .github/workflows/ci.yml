@@ -61,6 +61,34 @@ jobs:
         run: cargo test
         working-directory: src-tauri
 
+  # ── Windows: visual theme smoke test ────────────────────────────────────────
+  visual-windows:
+    name: Windows visual theme check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run visual tests
+        run: npx playwright test
+
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: theme-screenshot
+          path: test-results/theme-screenshot.png
+          if-no-files-found: ignore
+
   # ── Windows: build check ─────────────────────────────────────────────────────
   windows-build:
     name: Windows build
