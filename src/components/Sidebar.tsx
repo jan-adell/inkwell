@@ -7,7 +7,6 @@ import { useAppStore } from "../store/appStore";
 import {
   invokeListRootDocuments,
   invokeListChildDocuments,
-  invokeCreateDocument,
   invokeDeleteDocument,
   invokeListEntityTypes,
   invokeUpdateDocument,
@@ -169,13 +168,11 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
 export function Sidebar() {
   const {
     activeView, setActiveView,
-    projectId, rootDocuments, setRootDocuments, addDocument,
+    projectId, rootDocuments, setRootDocuments,
     entityTypes, setEntityTypes,
     setShowCreateEntityModal,
     setShowCreateDocumentModal,
   } = useAppStore();
-
-  const [creating, setCreating] = useState(false);
 
   // Load root documents on mount
   useEffect(() => {
@@ -183,20 +180,6 @@ export function Sidebar() {
     invokeListRootDocuments(projectId).then(setRootDocuments).catch(console.error);
     invokeListEntityTypes(projectId).then(setEntityTypes).catch(console.error);
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function createNovel() {
-    if (!projectId || creating) return;
-    setCreating(true);
-    try {
-      const doc = await invokeCreateDocument(projectId, {
-        node_type: "novel",
-        title: "Untitled Novel",
-      });
-      addDocument(doc);
-    } finally {
-      setCreating(false);
-    }
-  }
 
   return (
     <aside className="flex flex-col h-full bg-ink-deep border-r border-ink-border select-none">
@@ -292,19 +275,6 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Footer action - only for writing view with documents */}
-      {activeView === "writing" && rootDocuments.length > 0 && (
-        <div className="border-t border-ink-border p-2">
-          <button
-            onClick={createNovel}
-            disabled={creating}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-xs text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"
-          >
-            <Plus size={13} />
-            New document
-          </button>
-        </div>
-      )}
     </aside>
   );
 }

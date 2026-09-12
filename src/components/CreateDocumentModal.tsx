@@ -1,17 +1,37 @@
+import { useState } from "react";
 import { X, Plus } from "lucide-react";
 import { useAppStore } from "../store/appStore";
+import { invokeCreateDocument } from "../hooks/useTauri";
 
 export function CreateDocumentModal() {
-  const { showCreateDocumentModal, setShowCreateDocumentModal } = useAppStore();
+  const {
+    showCreateDocumentModal, setShowCreateDocumentModal,
+    projectId, addDocument, setSelectedDocumentId,
+  } = useAppStore();
+  const [creating, setCreating] = useState(false);
 
   if (!showCreateDocumentModal) {
     return null;
   }
 
-  const documentTypes = [
-    { id: "document", label: "Document" },
-    { id: "draft", label: "Draft" },
-  ];
+  async function handleCreateDocument() {
+    if (!projectId || creating) return;
+    setCreating(true);
+    try {
+      const doc = await invokeCreateDocument(projectId, {
+        node_type: "document",
+        title: "Untitled Document",
+      });
+      addDocument(doc);
+      setSelectedDocumentId(doc.id);
+      setShowCreateDocumentModal(false);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const btnClass =
+    "w-full flex items-center justify-between px-3 py-2 rounded bg-gold/20 border border-gold/40 hover:bg-gold/30 hover:border-gold text-gold transition-all group font-mono text-xs uppercase tracking-wider";
 
   return (
     <>
@@ -42,24 +62,22 @@ export function CreateDocumentModal() {
 
           {/* Content */}
           <div className="px-4 py-3 space-y-2">
-            {/* Document type buttons - golden */}
-            {documentTypes.map((type) => (
-              <button
-                key={type.id}
-                onClick={() => {
-                  console.log(`Creating ${type.id} document`);
-                  // TODO: Open document input panel
-                  setShowCreateDocumentModal(false);
-                }}
-                className="w-full flex items-center justify-between px-3 py-2 rounded bg-gold/20 border border-gold/40 hover:bg-gold/30 hover:border-gold text-gold transition-all group font-mono text-xs uppercase tracking-wider"
-              >
-                <span>{type.label}</span>
-                <Plus
-                  size={12}
-                  className="opacity-60 group-hover:opacity-100 transition-opacity"
-                />
-              </button>
-            ))}
+            <button
+              onClick={handleCreateDocument}
+              disabled={creating}
+              className={btnClass}
+            >
+              <span>Document</span>
+              <Plus size={12} className="opacity-60 group-hover:opacity-100 transition-opacity" />
+            </button>
+
+            <button
+              onClick={() => {}}
+              className={btnClass}
+            >
+              <span>Draft</span>
+              <Plus size={12} className="opacity-60 group-hover:opacity-100 transition-opacity" />
+            </button>
           </div>
         </div>
       </div>

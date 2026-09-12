@@ -1,6 +1,6 @@
 [package]
 name = "inkwell"
-version = "0.1.0"
+version = "0.2.0"
 description = "Inkwell — Local-first writing & worldbuilding"
 authors = ["Inkwell"]
 edition = "2021"
