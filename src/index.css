@@ -19,11 +19,14 @@
     @apply bg-ink-void text-ivory font-body;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* Prevent text selection on UI chrome */
-    user-select: none;
+    /* Keep UI chrome unselectable, but let text editors remain editable. */
   }
 
-  /* Allow text selection inside editors and readable content */
+  /* Allow text editing and selection in inputs and editors. */
+  input,
+  textarea,
+  [contenteditable="true"],
+  .prose-editor,
   .selectable {
     user-select: text;
   }
