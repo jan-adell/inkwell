@@ -30,9 +30,8 @@ function buildExtensions(mode: "prose" | "notes") {
   ];
 }
 
-function getPlainText(editor: ReturnType<typeof useEditor>): string {
-  if (!editor) return "";
-  return editor.getText();
+function getPlainText(editor: Editor | null): string {
+  return editor?.getText() ?? "";
 }
 
 export function RichTextEditor({ mode, value, onChange, onEditorReady, placeholder, className }: Props) {
@@ -45,6 +44,7 @@ export function RichTextEditor({ mode, value, onChange, onEditorReady, placehold
   const editor = useEditor({
     extensions: buildExtensions(mode),
     content: value && value !== EMPTY_DOC ? JSON.parse(value) : undefined,
+    editable: true,
     editorProps: {
       attributes: {
         class: [
@@ -52,14 +52,15 @@ export function RichTextEditor({ mode, value, onChange, onEditorReady, placehold
           mode === "prose" ? "prose-prose" : "prose-notes",
         ].join(" "),
         ...(placeholder ? { "data-placeholder": placeholder } : {}),
+        contenteditable: "true",
+        spellcheck: "true",
       },
     },
     onUpdate({ editor }) {
-      const json = JSON.stringify(editor.getJSON());
-      const text = getPlainText(editor);
-      onChangeRef.current(json, text);
+      onChangeRef.current(JSON.stringify(editor.getJSON()), getPlainText(editor));
     },
     onCreate({ editor }) {
+      editor.setEditable(true);
       onEditorReadyRef.current?.(editor);
     },
     onDestroy() {
@@ -69,6 +70,7 @@ export function RichTextEditor({ mode, value, onChange, onEditorReady, placehold
 
   useEffect(() => {
     if (!editor) return;
+    editor.setEditable(true);
     const current = JSON.stringify(editor.getJSON());
     const incoming = value || EMPTY_DOC;
     if (current !== incoming) {
@@ -81,7 +83,11 @@ export function RichTextEditor({ mode, value, onChange, onEditorReady, placehold
   }, [value, editor]);
 
   return (
-    <div className={className ?? "h-full"}>
+    <div
+      className={`${className ?? "h-full"} prose-editor-container`}
+      onMouseDown={() => editor?.commands.focus()}
+      onClick={() => editor?.commands.focus()}
+    >
       <EditorContent editor={editor} className="h-full" />
     </div>
   );
