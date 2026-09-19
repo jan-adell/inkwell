@@ -1,24 +1,37 @@
 import { useState } from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Folder } from "lucide-react";
 import { useAppStore } from "../store/appStore";
 import { invokeCreateDocument } from "../hooks/useTauri";
 
 export function CreateDocumentModal() {
   const {
-    showCreateDocumentModal, setShowCreateDocumentModal,
-    projectId, addDocument, setSelectedDocumentId,
+    showCreateDocumentModal,
+    setShowCreateDocumentModal,
+    projectId,
+    addDocument,
+    setSelectedDocumentId,
+    selectedDocumentId,
+    rootDocuments,
+    childrenMap,
   } = useAppStore();
   const [creating, setCreating] = useState(false);
 
   if (!showCreateDocumentModal) return null;
 
-  async function handleCreateDocument() {
+  const selectedDoc = [...rootDocuments, ...Object.values(childrenMap).flat()].find((doc) => doc.id === selectedDocumentId);
+
+  async function createDocumentWithType(nodeType: "document" | "folder") {
     if (!projectId || creating) return;
     setCreating(true);
     try {
+      const targetParent = selectedDoc && selectedDoc.node_type === "folder" ? selectedDoc.id : null;
+      const siblings = targetParent ? (childrenMap[targetParent] ?? []) : rootDocuments;
+      const sortOrder = siblings.length;
       const doc = await invokeCreateDocument(projectId, {
-        node_type: "document",
-        title: "Untitled Document",
+        node_type: nodeType,
+        title: nodeType === "folder" ? "New Folder" : "Untitled Document",
+        parent_id: targetParent ?? undefined,
+        sort_order: sortOrder,
       });
       addDocument(doc);
       setSelectedDocumentId(doc.id);
@@ -44,14 +57,23 @@ export function CreateDocumentModal() {
               <X size={14} />
             </button>
           </div>
-          <div className="px-4 py-3">
+          <div className="px-4 py-3 space-y-2">
             <button
-              onClick={handleCreateDocument}
+              onClick={() => createDocumentWithType("document")}
               disabled={creating}
               className="w-full flex items-center justify-between px-3 py-2 rounded bg-gold/20 border border-gold/40 hover:bg-gold/30 hover:border-gold text-gold transition-all group font-mono text-xs uppercase tracking-wider disabled:opacity-50"
             >
-              <span>Documento</span>
+              <span>Document</span>
               <Plus size={12} className="opacity-60 group-hover:opacity-100 transition-opacity" />
+            </button>
+
+            <button
+              onClick={() => createDocumentWithType("folder")}
+              disabled={creating}
+              className="w-full flex items-center justify-between px-3 py-2 rounded bg-ink-surface border border-ink-border hover:bg-ink-muted text-ivory transition-all group font-mono text-xs uppercase tracking-wider disabled:opacity-50"
+            >
+              <span>Folder</span>
+              <Folder size={12} className="opacity-60 group-hover:opacity-100 transition-opacity" />
             </button>
           </div>
         </div>
