@@ -9,55 +9,55 @@ import type { Document } from "../types/core";
 
 const AUTOSAVE_DELAY_MS = 1000;
 const EMPTY_DOC = '{"type":"doc","content":[]}';
-const PAGE_W = "210mm";
-const PAGE_MIN_H = "297mm";
+const PAGE_SIZES = {
+  A5: { width: "148mm", height: "210mm" },
+  A4: { width: "210mm", height: "297mm" },
+  A3: { width: "297mm", height: "420mm" },
+  unlimited: { width: "210mm", height: "auto" },
+} as const;
+type PageSize = keyof typeof PAGE_SIZES;
 const PAGE_MARGIN = "33mm 47mm 66mm 23mm";
 const ZOOM_KEY = "inkwell:editor-zoom";
-const ZOOM_LEVELS = [0.5, 0.625, 0.75, 0.875, 1.0, 1.25, 1.5, 1.75, 2.0];
-const DEFAULT_ZOOM = 1.0;
+const ZOOM_LEVELS = [0.5, 0.625, 0.75, 0.875, 1, 1.25, 1.5, 1.75, 2];
 const STATUS_LABELS: Record<Document["status"], string> = { idea: "Idea", draft: "Draft", revision: "Revision", final: "Final" };
 const STATUS_COLORS: Record<Document["status"], string> = { idea: "text-ivory-ghost", draft: "text-gold/80", revision: "text-amber-400", final: "text-emerald-400" };
-function loadZoom(): number { try { const parsed = parseFloat(localStorage.getItem(ZOOM_KEY) ?? ""); return ZOOM_LEVELS.includes(parsed) ? parsed : DEFAULT_ZOOM; } catch { return DEFAULT_ZOOM; } }
-function saveZoom(z: number) { try { localStorage.setItem(ZOOM_KEY, String(z)); } catch {} }
-function fmtDate(iso: string): string { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
-function fmtDateTime(iso: string): string { return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
+function loadZoom() { try { const value = parseFloat(localStorage.getItem(ZOOM_KEY) ?? ""); return ZOOM_LEVELS.includes(value) ? value : 1; } catch { return 1; } }
+function saveZoom(value: number) { try { localStorage.setItem(ZOOM_KEY, String(value)); } catch {} }
+function fmtDate(value: string) { return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+function fmtDateTime(value: string) { return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
 type SaveState = "idle" | "saving" | "saved" | "error";
-interface ToolbarProps { editor: Editor | null; zoom: number; onZoomIn: () => void; onZoomOut: () => void; canZoomIn: boolean; canZoomOut: boolean; }
-function Toolbar({ editor, zoom, onZoomIn, onZoomOut, canZoomIn, canZoomOut }: ToolbarProps) {
+
+function Toolbar({ editor, zoom, onZoomIn, onZoomOut, canZoomIn, canZoomOut, pageSize, onPageSizeChange }: { editor: Editor | null; zoom: number; onZoomIn: () => void; onZoomOut: () => void; canZoomIn: boolean; canZoomOut: boolean; pageSize: PageSize; onPageSizeChange: (size: PageSize) => void }) {
   const marks = useEditorState({ editor, selector: (ctx) => ({ bold: ctx.editor?.isActive("bold") ?? false, italic: ctx.editor?.isActive("italic") ?? false, h1: ctx.editor?.isActive("heading", { level: 1 }) ?? false, h2: ctx.editor?.isActive("heading", { level: 2 }) ?? false }) });
-  const fmtBtn = (active: boolean, onClick: () => void, label: string, Icon: React.ElementType) => <button onMouseDown={(e) => { e.preventDefault(); onClick(); }} title={label} className={`p-1.5 rounded transition-colors ${active ? "bg-gold/20 text-gold" : "text-ivory-ghost hover:text-ivory hover:bg-ink-muted"}`}><Icon size={14} /></button>;
-  const zoomBtn = (onClick: () => void, label: string, Icon: React.ElementType, enabled: boolean) => <button onClick={onClick} disabled={!enabled} title={label} className="p-1.5 rounded transition-colors text-ivory-ghost hover:text-ivory hover:bg-ink-muted disabled:opacity-30 disabled:cursor-default"><Icon size={14} /></button>;
-  return <div className="flex items-center gap-0.5 px-4 py-1.5 border-b border-ink-border flex-shrink-0">{editor && marks && <>{fmtBtn(marks.bold, () => editor.chain().focus().toggleBold().run(), "Bold", Bold)}{fmtBtn(marks.italic, () => editor.chain().focus().toggleItalic().run(), "Italic", Italic)}<div className="w-px h-4 bg-ink-border mx-1" />{fmtBtn(marks.h1, () => editor.chain().focus().toggleHeading({ level: 1 }).run(), "Chapter title", Heading1)}{fmtBtn(marks.h2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "Scene break", Heading2)}</>}<div className="ml-auto flex items-center gap-0.5">{zoomBtn(onZoomOut, "Zoom out", ZoomOut, canZoomOut)}<span className="text-xs text-ivory-ghost font-mono w-9 text-center tabular-nums">{Math.round(zoom * 100)}%</span>{zoomBtn(onZoomIn, "Zoom in", ZoomIn, canZoomIn)}</div></div>;
+  const button = (active: boolean, action: () => void, label: string, Icon: React.ElementType) => <button onMouseDown={(event) => { event.preventDefault(); action(); }} title={label} className={`p-1.5 rounded transition-colors ${active ? "bg-gold/20 text-gold" : "text-ivory-ghost hover:text-ivory hover:bg-ink-muted"}`}><Icon size={14} /></button>;
+  const zoomButton = (action: () => void, label: string, Icon: React.ElementType, enabled: boolean) => <button onClick={action} disabled={!enabled} title={label} className="p-1.5 rounded text-ivory-ghost hover:text-ivory hover:bg-ink-muted disabled:opacity-30"><Icon size={14} /></button>;
+  return <div className="flex items-center gap-0.5 px-4 py-1.5 border-b border-ink-border flex-shrink-0">{editor && marks && <>{button(marks.bold, () => editor.chain().focus().toggleBold().run(), "Bold", Bold)}{button(marks.italic, () => editor.chain().focus().toggleItalic().run(), "Italic", Italic)}<div className="w-px h-4 bg-ink-border mx-1" />{button(marks.h1, () => editor.chain().focus().toggleHeading({ level: 1 }).run(), "Chapter title", Heading1)}{button(marks.h2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "Scene break", Heading2)}</>}<label className="ml-3 flex items-center gap-2 text-xs text-ivory-ghost font-mono">Page <select value={pageSize} onChange={(event) => onPageSizeChange(event.target.value as PageSize)} className="bg-ink-surface border border-ink-border rounded px-1.5 py-1 text-xs text-ivory focus:outline-none"><option value="A5">A5</option><option value="A4">A4</option><option value="A3">A3</option><option value="unlimited">Unlimited</option></select></label><div className="ml-auto flex items-center gap-0.5">{zoomButton(onZoomOut, "Zoom out", ZoomOut, canZoomOut)}<span className="text-xs text-ivory-ghost font-mono w-9 text-center">{Math.round(zoom * 100)}%</span>{zoomButton(onZoomIn, "Zoom in", ZoomIn, canZoomIn)}</div></div>;
 }
-interface Props { documentId: string; doc: Document; }
-export function DocumentEditor({ documentId, doc }: Props) {
+
+export function DocumentEditor({ documentId, doc }: { documentId: string; doc: Document }) {
   const { updateDocument } = useAppStore();
   const [content, setContent] = useState<string | null>(null);
   const [localTitle, setLocalTitle] = useState(doc.title);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
-  const [zoom, setZoom] = useState<number>(loadZoom);
+  const [pageSize, setPageSize] = useState<PageSize>("A4");
+  const [zoom, setZoom] = useState(loadZoom);
   const [pagePx, setPagePx] = useState({ w: 0, h: 0 });
   const pageRef = useRef<HTMLDivElement>(null);
   const pendingSave = useRef<{ json: string; text: string } | null>(null);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentDocId = useRef(documentId);
-  const zoomIdx = ZOOM_LEVELS.indexOf(zoom);
-  const canZoomIn = zoomIdx < ZOOM_LEVELS.length - 1;
-  const canZoomOut = zoomIdx > 0;
-  function zoomIn() { if (canZoomIn) { const next = ZOOM_LEVELS[zoomIdx + 1]; setZoom(next); saveZoom(next); } }
-  function zoomOut() { if (canZoomOut) { const next = ZOOM_LEVELS[zoomIdx - 1]; setZoom(next); saveZoom(next); } }
-  useEffect(() => { const el = pageRef.current; if (!el) return; const ro = new ResizeObserver(() => setPagePx({ w: el.offsetWidth, h: el.offsetHeight })); ro.observe(el); return () => ro.disconnect(); }, []);
-  useEffect(() => { currentDocId.current = documentId; setContent(null); setLocalTitle(doc.title); setSaveState("idle"); invokeReadDocumentContent(documentId).then((json) => { if (currentDocId.current === documentId) setContent(json || EMPTY_DOC); }).catch(() => { if (currentDocId.current === documentId) setContent(EMPTY_DOC); }); }, [documentId]);
-  useEffect(() => { setLocalTitle(doc.title); }, [doc.title]);
-  async function flushSave(docId: string, json: string, text: string) { setSaveState("saving"); try { const updated = await invokeWriteDocumentContent(docId, json, text); updateDocument(updated); setSaveState("saved"); setTimeout(() => setSaveState("idle"), 2000); } catch { setSaveState("error"); } }
-  const handleChange = useCallback((json: string, text: string) => { pendingSave.current = { json, text }; if (debounceTimer.current) clearTimeout(debounceTimer.current); debounceTimer.current = setTimeout(() => { const snap = pendingSave.current; if (snap) { pendingSave.current = null; flushSave(currentDocId.current, snap.json, snap.text); } }, AUTOSAVE_DELAY_MS); }, []);
-  useEffect(() => () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); const snap = pendingSave.current; if (snap) { pendingSave.current = null; invokeWriteDocumentContent(currentDocId.current, snap.json, snap.text).then(updateDocument).catch(() => {}); } }, []);
-  async function handleTitleBlur() { const trimmed = localTitle.trim() || "Untitled"; if (trimmed === doc.title) return; try { updateDocument(await invokeUpdateDocument(documentId, { title: trimmed })); } catch { setLocalTitle(doc.title); } }
-  function handleTitleKey(e: React.KeyboardEvent<HTMLInputElement>) { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { setLocalTitle(doc.title); e.currentTarget.blur(); } }
-  async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) { try { updateDocument(await invokeUpdateDocument(documentId, { status: e.target.value })); } catch {} }
-  const GAP = 48;
-  const wrapperH = pagePx.h > 0 ? pagePx.h * zoom + GAP * 2 : "100%";
-  const wrapperMinW = pagePx.w > 0 ? pagePx.w * zoom + GAP * 2 : "100%";
-  return <div className="flex flex-col h-full"><div className="flex items-center gap-3 px-6 py-2.5 border-b border-ink-border flex-shrink-0"><input type="text" value={localTitle} onChange={(e) => setLocalTitle(e.target.value)} onBlur={handleTitleBlur} onKeyDown={handleTitleKey} className="flex-1 bg-transparent text-sm font-display text-ivory tracking-wide focus:outline-none selectable" placeholder="Untitled" /><select value={doc.status} onChange={handleStatusChange} className={["bg-transparent border-none text-xs font-mono focus:outline-none cursor-pointer flex-shrink-0", STATUS_COLORS[doc.status]].join(" ")}>{(Object.keys(STATUS_LABELS) as Document["status"][]).map((s) => <option key={s} value={s} className="bg-ink-deep text-ivory">{STATUS_LABELS[s]}</option>)}</select><span className="text-xs text-ivory-ghost font-mono flex-shrink-0 w-16 text-right">{saveState === "saving" && "Saving…"}{saveState === "saved" && "Saved"}{saveState === "error" && "Save failed"}</span></div><Toolbar editor={editorInstance} zoom={zoom} onZoomIn={zoomIn} onZoomOut={zoomOut} canZoomIn={canZoomIn} canZoomOut={canZoomOut} /><div className="flex-1 overflow-auto bg-[#111118]"><div style={{ minHeight: wrapperH, minWidth: wrapperMinW }} className="relative flex justify-center"><div ref={pageRef} style={{ width: PAGE_W, minHeight: PAGE_MIN_H, transform: `scale(${zoom})`, transformOrigin: "top center", position: "absolute", top: GAP }}><div className="bg-ink-deep border border-ink-border/40 shadow-[0_8px_40px_rgba(0,0,0,0.7)]">{content === null ? <div style={{ padding: PAGE_MARGIN }} className="space-y-2.5 animate-pulse">{[...Array(7)].map((_, i) => <div key={i} className="h-3 bg-ink-surface rounded" style={{ width: `${60 + (i % 4) * 10}%` }} />)}</div> : <div style={{ padding: PAGE_MARGIN }}><RichTextEditor mode="prose" value={content} onChange={handleChange} onEditorReady={setEditorInstance} placeholder="Start writing…" /></div>}</div></div></div></div><div className="px-6 py-1.5 border-t border-ink-border flex-shrink-0 flex items-center gap-4"><span className="text-xs text-ivory-ghost font-mono">{doc.word_count} {doc.word_count === 1 ? "word" : "words"}</span><span className="text-xs text-ivory-ghost font-mono">Created {fmtDate(doc.created_at)}</span><span className="text-xs text-ivory-ghost font-mono">Modified {fmtDateTime(doc.updated_at)}</span></div></div>;
+  const size = PAGE_SIZES[pageSize];
+  const zoomIndex = ZOOM_LEVELS.indexOf(zoom);
+  const handleChange = useCallback((json: string, text: string) => { pendingSave.current = { json, text }; if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => { const value = pendingSave.current; if (value) { pendingSave.current = null; void flushSave(currentDocId.current, value.json, value.text); } }, AUTOSAVE_DELAY_MS); }, []);
+  async function flushSave(id: string, json: string, text: string) { setSaveState("saving"); try { updateDocument(await invokeWriteDocumentContent(id, json, text)); setSaveState("saved"); setTimeout(() => setSaveState("idle"), 2000); } catch { setSaveState("error"); } }
+  useEffect(() => { const element = pageRef.current; if (!element) return; const observer = new ResizeObserver(() => setPagePx({ w: element.offsetWidth, h: element.offsetHeight })); observer.observe(element); return () => observer.disconnect(); }, []);
+  useEffect(() => { currentDocId.current = documentId; setContent(null); setLocalTitle(doc.title); void invokeReadDocumentContent(documentId).then((value) => { if (currentDocId.current === documentId) setContent(value || EMPTY_DOC); }).catch(() => setContent(EMPTY_DOC)); }, [documentId, doc.title]);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); const value = pendingSave.current; if (value) void invokeWriteDocumentContent(currentDocId.current, value.json, value.text); }, []);
+  async function handleTitleBlur() { const title = localTitle.trim() || "Untitled"; if (title !== doc.title) { try { updateDocument(await invokeUpdateDocument(documentId, { title })); } catch { setLocalTitle(doc.title); } } }
+  async function handleStatusChange(event: React.ChangeEvent<HTMLSelectElement>) { try { updateDocument(await invokeUpdateDocument(documentId, { status: event.target.value })); } catch {} }
+  const gap = 48;
+  const wrapperHeight = pagePx.h > 0 && pageSize !== "unlimited" ? pagePx.h * zoom + gap * 2 : "100%";
+  const wrapperWidth = pagePx.w > 0 ? pagePx.w * zoom + gap * 2 : "100%";
+  return <div className="flex flex-col h-full"><div className="flex items-center gap-3 px-6 py-2.5 border-b border-ink-border flex-shrink-0"><input type="text" value={localTitle} onChange={(event) => setLocalTitle(event.target.value)} onBlur={handleTitleBlur} className="flex-1 bg-transparent text-sm font-display text-ivory tracking-wide focus:outline-none selectable" placeholder="Untitled" /><select value={doc.status} onChange={handleStatusChange} className={`bg-transparent border-none text-xs font-mono focus:outline-none cursor-pointer flex-shrink-0 ${STATUS_COLORS[doc.status]}`}>{(Object.keys(STATUS_LABELS) as Document["status"][]).map((status) => <option key={status} value={status} className="bg-ink-deep text-ivory">{STATUS_LABELS[status]}</option>)}</select><span className="text-xs text-ivory-ghost font-mono w-16 text-right">{saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : ""}</span></div><Toolbar editor={editorInstance} zoom={zoom} onZoomIn={() => { if (zoomIndex < ZOOM_LEVELS.length - 1) { const value = ZOOM_LEVELS[zoomIndex + 1]; setZoom(value); saveZoom(value); } }} onZoomOut={() => { if (zoomIndex > 0) { const value = ZOOM_LEVELS[zoomIndex - 1]; setZoom(value); saveZoom(value); } }} canZoomIn={zoomIndex < ZOOM_LEVELS.length - 1} canZoomOut={zoomIndex > 0} pageSize={pageSize} onPageSizeChange={setPageSize} /><div className="flex-1 overflow-auto bg-[#111118]"><div style={{ minHeight: wrapperHeight, minWidth: wrapperWidth }} className="relative flex justify-center"><div ref={pageRef} className={`page-sheet page-size-${pageSize}`} style={{ width: size.width, minHeight: size.height === "auto" ? "calc(100vh - 180px)" : size.height, transform: `scale(${zoom})`, transformOrigin: "top center", position: "absolute", top: gap, padding: PAGE_MARGIN }}><div className="page-sheet-content">{content === null ? <div className="space-y-2.5 animate-pulse">{[...Array(7)].map((_, index) => <div key={index} className="h-3 bg-ink-surface rounded" style={{ width: `${60 + (index % 4) * 10}%` }} />)}</div> : <RichTextEditor mode="prose" value={content} onChange={handleChange} onEditorReady={setEditorInstance} placeholder="Start writing…" />}</div></div></div></div><div className="px-6 py-1.5 border-t border-ink-border flex-shrink-0 flex items-center gap-4"><span className="text-xs text-ivory-ghost font-mono">{doc.word_count} {doc.word_count === 1 ? "word" : "words"}</span><span className="text-xs text-ivory-ghost font-mono">Created {fmtDate(doc.created_at)}</span><span className="text-xs text-ivory-ghost font-mono">Modified {fmtDateTime(doc.updated_at)}</span></div></div>;
 }
