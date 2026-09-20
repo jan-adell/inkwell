@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub const VALID_NODE_TYPES: &[&str] = &["novel", "part", "chapter", "scene", "note", "document", "folder"];
+pub const VALID_NODE_TYPES: &[&str] = &["scene", "note", "document", "folder"];
 pub const VALID_STATUSES: &[&str] = &["idea", "draft", "revision", "final"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,5 +37,5 @@ pub struct UpdateDocumentRequest {
     pub status: Option<String>,
     pub sort_order: Option<i64>,
     pub is_included: Option<bool>,
-    pub parent_id: Option<String>,
+    pub parent_id: Option<Option<String>>,
 }

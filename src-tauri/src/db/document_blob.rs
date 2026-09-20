@@ -75,7 +75,7 @@ mod tests {
             "proj-1",
             &CreateDocumentRequest {
                 parent_id: None,
-                node_type: "chapter".into(),
+                node_type: "document".into(),
                 title: "Chapter One".into(),
                 synopsis: None,
                 status: None,
