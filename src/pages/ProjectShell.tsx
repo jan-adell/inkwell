@@ -1,4 +1,4 @@
-import { FileText, Map, Clock, Search, Settings } from "lucide-react";
+import { FileText, Map, Clock, Search, Settings, Folder } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { CreateEntityModal } from "../components/CreateEntityModal";
 import { CreateDocumentModal } from "../components/CreateDocumentModal";
@@ -104,6 +104,7 @@ function MainArea() {
   if (activeView === "worldbuilding") {
     return <main className="flex-1 flex flex-col items-center justify-center bg-ink-void"><div className="text-center max-w-sm"><h2 className="text-2xl font-display text-gold mb-3 tracking-wide">Your world</h2><p className="text-sm text-ivory-ghost leading-relaxed">Select an entity type from the sidebar to explore your world.</p></div></main>;
   }
+  if (selectedDoc?.node_type === "folder") return <main className="flex-1 flex flex-col items-center justify-center bg-ink-void"><Folder size={32} className="text-ivory-ghost opacity-20 mx-auto mb-3" /><p className="text-sm text-ivory font-display tracking-wide">{selectedDoc.title}</p><p className="text-xs text-ivory-ghost mt-1">Folder</p></main>;
   if (selectedDoc) return <main className="flex-1 flex flex-col bg-ink-void overflow-hidden"><DocumentEditor key={selectedDoc.id} documentId={selectedDoc.id} doc={selectedDoc} /></main>;
   return <main className="flex-1 flex flex-col items-center justify-center bg-ink-void"><FileText size={32} className="text-ivory-ghost opacity-20 mx-auto mb-3" /><p className="text-sm text-ivory-ghost">Select a document to start writing.</p></main>;
 }
