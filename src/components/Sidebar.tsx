@@ -111,7 +111,7 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
         invokeUpdateDocument(item.id, { sort_order: index }).catch(() => undefined)
       )
     );
-    if (parentId === null) {
+    if (parentId !== null) {
       setChildren(parentId, order);
     }
   }
