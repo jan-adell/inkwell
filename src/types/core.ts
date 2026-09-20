@@ -25,7 +25,7 @@ export interface Document {
   id: string;
   project_id: string;
   parent_id: string | null;
-  node_type: "novel" | "part" | "chapter" | "scene" | "note" | "document" | "folder";
+  node_type: "scene" | "note" | "document" | "folder";
   title: string;
   synopsis: string | null;
   status: "idea" | "draft" | "revision" | "final";

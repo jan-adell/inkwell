@@ -28,7 +28,7 @@ describe("appStore document tree", () => {
     id: "doc-1",
     project_id: "proj-1",
     parent_id: null,
-    node_type: "chapter" as const,
+    node_type: "document" as const,
     title: "Chapter One",
     synopsis: null,
     status: "draft" as const,
