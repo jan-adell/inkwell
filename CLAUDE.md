@@ -74,6 +74,15 @@ SQL migrations live in `src-tauri/src/db/migrations/` as numbered `.sql` files. 
 
 All IDs are **ULIDs** (sortable, globally unique). Never use sequential integers or UUIDs.
 
+## Target platforms
+
+Inkwell targets **Linux and Windows**. Every feature must work on both platforms. Platform-specific considerations:
+
+- Use `dragDropEnabled: false` in `tauri.conf.json` — Tauri's native file-drop handler intercepts HTML5 DnD events on Windows (WebView2) and must be disabled for any custom drag-and-drop.
+- Do not rely solely on `dataTransfer.getData()` for drag state — WebView2 can return an empty string. Use a Zustand store field as a sidecar (see `draggingId` in `appStore.ts`).
+- Avoid CSS or JS that depends on Linux-only rendering behaviour; test visual layouts on both platforms.
+- File path separators: always use Tauri's path APIs (never hardcode `/`) so paths are portable.
+
 ## Key constraints
 
 - No network code in the Rust backend — enforced at the dependency level (no HTTP client in `Cargo.toml`).
