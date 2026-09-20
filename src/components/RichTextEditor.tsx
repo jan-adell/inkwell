@@ -59,14 +59,20 @@ export function RichTextEditor({ mode, value, onChange, onEditorReady, placehold
     onUpdate({ editor }) {
       onChangeRef.current(JSON.stringify(editor.getJSON()), getPlainText(editor));
     },
-    onCreate({ editor }) {
-      editor.setEditable(true);
-      onEditorReadyRef.current?.(editor);
-    },
-    onDestroy() {
-      onEditorReadyRef.current?.(null);
-    },
   });
+
+  // TipTap can finish creating the editor after the first React render. Notify
+  // the parent from an effect so the toolbar gets the instance consistently in
+  // both Linux WebKit and Windows WebView2.
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(true);
+    onEditorReadyRef.current?.(editor);
+
+    return () => {
+      onEditorReadyRef.current?.(null);
+    };
+  }, [editor]);
 
   useEffect(() => {
     if (!editor) return;
