@@ -193,6 +193,20 @@ function findEntityInStore(entityId: string): Entity | undefined {
   return all.find((e) => e.id === entityId);
 }
 
+function updateEntityInStore(updated: Entity) {
+  const state = useAppStore.getState();
+  if (state.rootEntities.some((e) => e.id === updated.id)) {
+    state.setRootEntities(state.rootEntities.map((e) => (e.id === updated.id ? updated : e)));
+    return;
+  }
+  for (const [folderId, entities] of Object.entries(state.entitiesByFolder)) {
+    if (entities.some((e) => e.id === updated.id)) {
+      state.setEntitiesForFolder(folderId, entities.map((e) => (e.id === updated.id ? updated : e)));
+      return;
+    }
+  }
+}
+
 export function EntityDetail({ entityId }: { entityId: string }) {
   const { entityTypes, fieldDefinitionsByType, setFieldDefinitionsForType } = useAppStore();
   const [entity, setEntity] = useState<Entity | null>(() => findEntityInStore(entityId) ?? null);
@@ -241,6 +255,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
     try {
       const updated = await invokeUpdateEntity(entity.id, { name: nameDraft });
       setEntity(updated);
+      updateEntityInStore(updated);
     } catch {
       setNameDraft(entity.name);
     }
@@ -251,6 +266,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
     try {
       const updated = await invokeUpdateEntity(entity.id, { summary: summaryDraft });
       setEntity(updated);
+      updateEntityInStore(updated);
     } catch {
       // ignore
     }
