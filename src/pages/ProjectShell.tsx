@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FileText, Map, Clock, Search, Settings, Folder, BookOpen, Globe } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { CreateEntityModal } from "../components/CreateEntityModal";
@@ -93,6 +93,26 @@ function DocInspectorContent() {
 
 function Inspector() {
   const [activeTab, setActiveTab] = useState<"doc" | "entity">("doc");
+  const { activeView, selectedEntityId } = useAppStore();
+
+  useEffect(() => {
+    if (selectedEntityId) setActiveTab("entity");
+  }, [selectedEntityId]);
+
+  if (activeView === "worldbuilding") {
+    return (
+      <aside className="flex flex-col h-full bg-ink-deep border-l border-ink-border w-64 flex-shrink-0 overflow-y-auto min-h-0">
+        {selectedEntityId ? (
+          <EntityDetail key={selectedEntityId} entityId={selectedEntityId} />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-center p-4">
+            <Globe size={24} className="text-ivory-ghost opacity-30 mb-2" />
+            <p className="text-xs text-ivory-ghost">Select an entity to edit</p>
+          </div>
+        )}
+      </aside>
+    );
+  }
 
   return (
     <aside className="flex flex-col h-full bg-ink-deep border-l border-ink-border w-64 flex-shrink-0">
@@ -126,20 +146,10 @@ function Inspector() {
 }
 
 function MainArea() {
-  const { selectedDocumentId, selectedEntityId, activeView, rootDocuments, childrenMap } = useAppStore();
+  const { selectedDocumentId, rootDocuments, childrenMap } = useAppStore();
   const selectedDoc = [...rootDocuments, ...Object.values(childrenMap).flat()]
     .find((document) => document.id === selectedDocumentId);
 
-  if (activeView === "worldbuilding" && selectedEntityId) {
-    return (
-      <main className="flex-1 flex flex-col bg-ink-void overflow-hidden">
-        <EntityDetail key={selectedEntityId} entityId={selectedEntityId} />
-      </main>
-    );
-  }
-  if (activeView === "worldbuilding") {
-    return <main className="flex-1 flex flex-col items-center justify-center bg-ink-void"><div className="text-center max-w-sm"><h2 className="text-2xl font-display text-gold mb-3 tracking-wide">Your world</h2><p className="text-sm text-ivory-ghost leading-relaxed">Select an entity from the sidebar or create folders and entities to build your world.</p></div></main>;
-  }
   if (!selectedDocumentId) {
     return <main className="flex-1 flex flex-col items-center justify-center bg-ink-void"><div className="text-center max-w-sm"><h2 className="text-2xl font-display text-gold mb-3 tracking-wide">Start writing</h2><p className="text-sm text-ivory-ghost leading-relaxed">Select a document from the sidebar, or create a new one to begin.</p></div></main>;
   }
