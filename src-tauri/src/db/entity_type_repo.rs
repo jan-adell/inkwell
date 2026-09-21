@@ -118,6 +118,37 @@ pub fn update(conn: &Connection, id: &str, req: &UpdateEntityTypeRequest) -> Res
     get(conn, id)
 }
 
+pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
+    let existing = list(conn, project_id)?;
+    if !existing.is_empty() {
+        return Ok(());
+    }
+
+    let defaults = [
+        ("Character", "Characters", "#8B6FE8"),
+        ("Location", "Locations", "#4EA86B"),
+        ("Item", "Items", "#E8883A"),
+        ("Event", "Events", "#4A9FD4"),
+        ("Organization", "Organizations", "#D44A7A"),
+    ];
+
+    for (i, (name, plural, color)) in defaults.iter().enumerate() {
+        create(
+            conn,
+            project_id,
+            &CreateEntityTypeRequest {
+                name: name.to_string(),
+                name_plural: Some(plural.to_string()),
+                icon: None,
+                color: Some(color.to_string()),
+                description: None,
+                sort_order: Some(i as i64),
+            },
+        )?;
+    }
+    Ok(())
+}
+
 /// Soft-delete. Refuses to delete system types.
 pub fn delete(conn: &Connection, id: &str) -> Result<()> {
     let current = get(conn, id)?;
