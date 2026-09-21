@@ -7,8 +7,15 @@ import {
   invokeDeleteDocument,
   invokeListEntityTypes,
   invokeUpdateDocument,
+  invokeListEntityFolders,
+  invokeCreateEntityFolder,
+  invokeDeleteEntityFolder,
+  invokeListRootEntities,
+  invokeListEntitiesByFolder,
+  invokeCreateEntity,
+  invokeDeleteEntity,
 } from "../hooks/useTauri";
-import type { Document } from "../types/core";
+import type { Document, Entity, EntityFolder, EntityType } from "../types/core";
 
 const STATUS_LABELS: Record<Document["status"], string> = {
   idea: "Idea",
@@ -291,6 +298,265 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
   );
 }
 
+function EntityRow({
+  entity,
+  entityType,
+  onDeleted,
+}: {
+  entity: Entity;
+  entityType: EntityType | undefined;
+  onDeleted: (id: string) => void;
+}) {
+  const { selectedEntityId, setSelectedEntityId } = useAppStore();
+  const isSelected = selectedEntityId === entity.id;
+
+  async function handleDelete(event: React.MouseEvent) {
+    event.stopPropagation();
+    await invokeDeleteEntity(entity.id);
+    onDeleted(entity.id);
+  }
+
+  return (
+    <div
+      className={`group flex items-center gap-2 px-2 py-1 rounded text-sm cursor-pointer transition-colors ${isSelected ? "bg-gold/20 text-gold" : "text-ivory-dim hover:bg-ink-muted hover:text-ivory"}`}
+      style={{ paddingLeft: "24px" }}
+      onClick={() => setSelectedEntityId(entity.id)}
+    >
+      <span
+        className="w-2 h-2 rounded-full flex-shrink-0"
+        style={{ backgroundColor: entityType?.color ?? "#c9a84c" }}
+      />
+      <span className="flex-1 min-w-0 truncate">{entity.name}</span>
+      <span className="text-[10px] text-ivory-ghost flex-shrink-0">{entityType?.name ?? ""}</span>
+      <button
+        onClick={handleDelete}
+        className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-ivory-ghost hover:text-crimson transition-all"
+        title="Delete entity"
+      >
+        <Trash2 size={11} />
+      </button>
+    </div>
+  );
+}
+
+function AddEntityInline({
+  folderId,
+  projectId,
+  entityTypes,
+  onCreated,
+}: {
+  folderId: string | null;
+  projectId: string;
+  entityTypes: EntityType[];
+  onCreated: (entity: Entity) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [typeId, setTypeId] = useState(entityTypes[0]?.id ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+
+  async function submit() {
+    const trimmed = name.trim();
+    if (!trimmed || !typeId) { setOpen(false); return; }
+    try {
+      const entity = await invokeCreateEntity(projectId, {
+        entity_type_id: typeId,
+        name: trimmed,
+        folder_id: folderId,
+      });
+      onCreated(entity);
+    } catch {
+      // ignore
+    }
+    setName("");
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1 px-2 py-0.5 text-xs text-ivory-ghost hover:text-ivory transition-colors"
+        style={{ paddingLeft: folderId ? "32px" : "8px" }}
+      >
+        <Plus size={11} />
+        New entity
+      </button>
+    );
+  }
+
+  return (
+    <div className="px-2 py-1 space-y-1" style={{ paddingLeft: folderId ? "28px" : "8px" }}>
+      <input
+        ref={inputRef}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") void submit(); if (e.key === "Escape") setOpen(false); }}
+        placeholder="Entity name…"
+        className="w-full bg-ink-muted text-ivory text-xs px-2 py-1 rounded focus:outline-none"
+      />
+      <select
+        value={typeId}
+        onChange={(e) => setTypeId(e.target.value)}
+        className="w-full bg-ink-muted text-ivory-dim text-xs px-2 py-1 rounded focus:outline-none"
+      >
+        {entityTypes.map((t) => (
+          <option key={t.id} value={t.id}>{t.name}</option>
+        ))}
+      </select>
+      <div className="flex gap-1">
+        <button onClick={() => void submit()} className="flex-1 text-xs bg-gold/20 text-gold rounded py-0.5 hover:bg-gold/30">Add</button>
+        <button onClick={() => setOpen(false)} className="flex-1 text-xs text-ivory-ghost rounded py-0.5 hover:bg-ink-muted">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function EntityFolderRow({
+  folder,
+  projectId,
+  entityTypes,
+}: {
+  folder: EntityFolder;
+  projectId: string;
+  entityTypes: EntityType[];
+}) {
+  const { entitiesByFolder, setEntitiesForFolder } = useAppStore();
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const entities = entitiesByFolder[folder.id] ?? null;
+
+  async function toggle() {
+    if (!expanded && entities === null) {
+      setLoading(true);
+      try {
+        const items = await invokeListEntitiesByFolder(projectId, folder.id);
+        setEntitiesForFolder(folder.id, items);
+      } finally {
+        setLoading(false);
+      }
+    }
+    setExpanded((v) => !v);
+  }
+
+  async function handleDeleteFolder(event: React.MouseEvent) {
+    event.stopPropagation();
+    await invokeDeleteEntityFolder(folder.id);
+    const { entityFolders, setEntityFolders } = useAppStore.getState();
+    setEntityFolders(entityFolders.filter((f) => f.id !== folder.id));
+  }
+
+  function handleEntityCreated(entity: Entity) {
+    const current = useAppStore.getState().entitiesByFolder[folder.id] ?? [];
+    useAppStore.getState().setEntitiesForFolder(folder.id, [...current, entity]);
+    if (!expanded) setExpanded(true);
+  }
+
+  function handleEntityDeleted(id: string) {
+    const current = useAppStore.getState().entitiesByFolder[folder.id] ?? [];
+    useAppStore.getState().setEntitiesForFolder(folder.id, current.filter((e) => e.id !== id));
+  }
+
+  return (
+    <div>
+      <div
+        className="group flex items-center gap-1.5 px-2 py-1 rounded text-sm text-ivory-dim hover:bg-ink-muted hover:text-ivory cursor-pointer transition-colors"
+        onClick={() => void toggle()}
+      >
+        {loading ? (
+          <span className="w-3 h-3 flex-shrink-0">
+            <span className="block w-2 h-2 border border-ivory-ghost rounded-full animate-spin" />
+          </span>
+        ) : expanded ? (
+          <ChevronDown size={12} className="flex-shrink-0 text-ivory-ghost" />
+        ) : (
+          <ChevronRight size={12} className="flex-shrink-0 text-ivory-ghost" />
+        )}
+        <Folder size={13} className="flex-shrink-0 opacity-60" />
+        <span className="flex-1 min-w-0 truncate text-xs font-medium uppercase tracking-wider">{folder.name}</span>
+        <button
+          onClick={handleDeleteFolder}
+          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-ivory-ghost hover:text-crimson transition-all"
+          title="Delete folder"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
+      {expanded && (
+        <div>
+          {(entities ?? []).map((entity) => (
+            <EntityRow
+              key={entity.id}
+              entity={entity}
+              entityType={entityTypes.find((t) => t.id === entity.entity_type_id)}
+              onDeleted={handleEntityDeleted}
+            />
+          ))}
+          <AddEntityInline
+            folderId={folder.id}
+            projectId={projectId}
+            entityTypes={entityTypes}
+            onCreated={handleEntityCreated}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddFolderInline({ projectId }: { projectId: string }) {
+  const { entityFolders, setEntityFolders } = useAppStore();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+
+  async function submit() {
+    const trimmed = name.trim();
+    if (!trimmed) { setOpen(false); return; }
+    try {
+      const folder = await invokeCreateEntityFolder(projectId, { name: trimmed });
+      setEntityFolders([...entityFolders, folder]);
+    } catch {
+      // ignore
+    }
+    setName("");
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1 px-2 py-0.5 text-xs text-ivory-ghost hover:text-ivory transition-colors"
+      >
+        <Plus size={11} />
+        New folder
+      </button>
+    );
+  }
+
+  return (
+    <div className="px-2 py-1">
+      <input
+        ref={inputRef}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") void submit(); if (e.key === "Escape") setOpen(false); }}
+        placeholder="Folder name…"
+        className="w-full bg-ink-muted text-ivory text-xs px-2 py-1 rounded focus:outline-none"
+      />
+      <div className="flex gap-1 mt-1">
+        <button onClick={() => void submit()} className="flex-1 text-xs bg-gold/20 text-gold rounded py-0.5 hover:bg-gold/30">Add</button>
+        <button onClick={() => setOpen(false)} className="flex-1 text-xs text-ivory-ghost rounded py-0.5 hover:bg-ink-muted">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const {
     activeView,
@@ -300,7 +566,10 @@ export function Sidebar() {
     setRootDocuments,
     entityTypes,
     setEntityTypes,
-    setShowCreateEntityModal,
+    entityFolders,
+    setEntityFolders,
+    rootEntities,
+    setRootEntities,
     setShowCreateDocumentModal,
   } = useAppStore();
 
@@ -308,6 +577,8 @@ export function Sidebar() {
     if (!projectId) return;
     invokeListRootDocuments(projectId).then(setRootDocuments).catch(console.error);
     invokeListEntityTypes(projectId).then(setEntityTypes).catch(console.error);
+    invokeListEntityFolders(projectId).then(setEntityFolders).catch(console.error);
+    invokeListRootEntities(projectId).then(setRootEntities).catch(console.error);
   }, [projectId]);
 
   return (
@@ -331,13 +602,7 @@ export function Sidebar() {
 
       {activeView === "worldbuilding" && (
         <div className="px-2 py-2 border-b border-ink-border">
-          <button
-            onClick={() => setShowCreateEntityModal(true)}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded text-xs text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"
-          >
-            <Plus size={13} />
-            New Entity
-          </button>
+          <p className="text-[10px] text-ivory-ghost uppercase tracking-wider px-1 mb-1">World</p>
         </div>
       )}
 
@@ -359,22 +624,33 @@ export function Sidebar() {
             )}
           </>
         ) : (
-          <div className="px-2 py-2 space-y-1">
-            {entityTypes.length === 0 ? (
-              <p className="px-2 py-6 text-xs text-ivory-ghost text-center">No entity types yet.</p>
-            ) : (
-              entityTypes.map((entityType) => (
-                <div
-                  key={entityType.id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-ivory-dim hover:bg-ink-muted hover:text-ivory cursor-pointer transition-colors"
-                >
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: entityType.color ?? "#c9a84c" }}
-                  />
-                  {entityType.name_plural ?? entityType.name}
-                </div>
-              ))
+          <div className="px-1 py-1 space-y-0.5">
+            {entityFolders.map((folder) => (
+              <EntityFolderRow
+                key={folder.id}
+                folder={folder}
+                projectId={projectId!}
+                entityTypes={entityTypes}
+              />
+            ))}
+            {rootEntities.map((entity) => (
+              <EntityRow
+                key={entity.id}
+                entity={entity}
+                entityType={entityTypes.find((t) => t.id === entity.entity_type_id)}
+                onDeleted={(id) => setRootEntities(rootEntities.filter((e) => e.id !== id))}
+              />
+            ))}
+            {projectId && (
+              <>
+                <AddEntityInline
+                  folderId={null}
+                  projectId={projectId}
+                  entityTypes={entityTypes}
+                  onCreated={(entity) => setRootEntities([...rootEntities, entity])}
+                />
+                <AddFolderInline projectId={projectId} />
+              </>
             )}
           </div>
         )}
