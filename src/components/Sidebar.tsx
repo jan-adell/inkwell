@@ -487,7 +487,7 @@ function EntityRow({
   );
 }
 
-function findEntityContext(
+export function findEntityContext(
   entityId: string,
   state: ReturnType<typeof useAppStore.getState>,
 ): { folderId: string | null; list: Entity[] } {
@@ -500,9 +500,9 @@ function findEntityContext(
   return { folderId: null, list: [] };
 }
 
-type MergedItem = { kind: 'folder'; id: string; sort_order: number } | { kind: 'entity'; id: string; sort_order: number };
+export type MergedItem = { kind: 'folder'; id: string; sort_order: number } | { kind: 'entity'; id: string; sort_order: number };
 
-function getMergedRootItems(state: ReturnType<typeof useAppStore.getState>): MergedItem[] {
+export function getMergedRootItems(state: ReturnType<typeof useAppStore.getState>): MergedItem[] {
   return [
     ...state.entityFolders.map(f => ({ kind: 'folder' as const, id: f.id, sort_order: f.sort_order })),
     ...state.rootEntities.map(e => ({ kind: 'entity' as const, id: e.id, sort_order: e.sort_order })),

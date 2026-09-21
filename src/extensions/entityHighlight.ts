@@ -6,42 +6,53 @@ import { useAppStore } from "../store/appStore";
 
 export const ENTITY_HIGHLIGHT_KEY = new PluginKey<DecorationSet>("entityHighlight");
 
-function getAllEntities() {
+const MIN_NAME_LENGTH = 2;
+
+export interface EntityRef { id: string; name: string; }
+export interface TextMatch { entityId: string; name: string; start: number; end: number; }
+
+export function findEntityMatches(text: string, entities: EntityRef[]): TextMatch[] {
+  const candidates = entities
+    .filter(e => e.name.trim().length >= MIN_NAME_LENGTH)
+    .sort((a, b) => b.name.length - a.name.length);
+
+  const matches: TextMatch[] = [];
+  for (const entity of candidates) {
+    const escaped = entity.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`\\b${escaped}\\b`, "gi");
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(text)) !== null) {
+      matches.push({ entityId: entity.id, name: entity.name, start: match.index, end: match.index + match[0].length });
+    }
+  }
+  return matches;
+}
+
+function getAllEntities(): EntityRef[] {
   const state = useAppStore.getState();
   return [
     ...state.rootEntities,
     ...Object.values(state.entitiesByFolder).flat(),
-  ].filter(e => e.name.trim().length >= 2);
+  ];
 }
 
 function buildDecorations(doc: ProseMirrorNode): DecorationSet {
   const entities = getAllEntities();
   if (entities.length === 0) return DecorationSet.empty;
 
-  entities.sort((a, b) => b.name.length - a.name.length);
-
   const decorations: Decoration[] = [];
 
   doc.descendants((node, pos) => {
     if (!node.isText || !node.text) return;
-    const text = node.text;
-
-    for (const entity of entities) {
-      const escaped = entity.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(`\\b${escaped}\\b`, "gi");
-      let match: RegExpExecArray | null;
-      while ((match = regex.exec(text)) !== null) {
-        const from = pos + match.index;
-        const to = from + match[0].length;
-        decorations.push(
-          Decoration.inline(from, to, {
-            nodeName: "span",
-            class: "entity-link",
-            "data-entity-id": entity.id,
-            title: entity.name,
-          })
-        );
-      }
+    for (const match of findEntityMatches(node.text, entities)) {
+      decorations.push(
+        Decoration.inline(pos + match.start, pos + match.end, {
+          nodeName: "span",
+          class: "entity-link",
+          "data-entity-id": match.entityId,
+          title: match.name,
+        })
+      );
     }
   });
 

@@ -289,6 +289,56 @@ mod tests {
     }
 
     #[test]
+    fn seed_defaults_creates_five_types() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        seed_defaults(&conn, &pid).unwrap();
+        let types = list(&conn, &pid).unwrap();
+        assert_eq!(types.len(), 5);
+        let names: Vec<&str> = types.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"Character"));
+        assert!(names.contains(&"Location"));
+        assert!(names.contains(&"Item"));
+        assert!(names.contains(&"Event"));
+        assert!(names.contains(&"Organization"));
+    }
+
+    #[test]
+    fn seed_defaults_is_idempotent() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        seed_defaults(&conn, &pid).unwrap();
+        seed_defaults(&conn, &pid).unwrap();
+        let types = list(&conn, &pid).unwrap();
+        assert_eq!(types.len(), 5);
+    }
+
+    #[test]
+    fn seed_defaults_assigns_sort_order_in_order() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        seed_defaults(&conn, &pid).unwrap();
+        let types = list(&conn, &pid).unwrap();
+        for (i, t) in types.iter().enumerate() {
+            assert_eq!(t.sort_order, i as i64);
+        }
+    }
+
+    #[test]
+    fn seed_defaults_skips_when_types_already_exist() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        create(&conn, &pid, &CreateEntityTypeRequest {
+            name: "Custom".into(), name_plural: None, icon: None,
+            color: None, description: None, sort_order: None,
+        }).unwrap();
+        seed_defaults(&conn, &pid).unwrap();
+        let types = list(&conn, &pid).unwrap();
+        assert_eq!(types.len(), 1);
+        assert_eq!(types[0].name, "Custom");
+    }
+
+    #[test]
     fn cannot_delete_system_type() {
         let conn = test_conn();
         let pid = seed_project(&conn);
