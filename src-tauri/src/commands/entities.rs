@@ -77,6 +77,31 @@ pub async fn delete_entity(state: State<'_, AppState>, id: String) -> Result<()>
 }
 
 #[tauri::command]
+pub async fn list_root_entities(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<Entity>> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+    entity_repo::list_root_entities(&conn, &project_id)
+}
+
+#[tauri::command]
+pub async fn list_entities_by_folder(
+    state: State<'_, AppState>,
+    project_id: String,
+    folder_id: String,
+) -> Result<Vec<Entity>> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+    entity_repo::list_by_folder(&conn, &project_id, &folder_id)
+}
+
+#[tauri::command]
 pub async fn write_entity_notes(
     state: State<'_, AppState>,
     entity_id: String,

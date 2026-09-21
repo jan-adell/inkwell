@@ -105,6 +105,7 @@ mod tests {
                 summary: None,
                 visibility: None,
                 sort_order: None,
+                folder_id: None,
             },
         )
         .unwrap()

@@ -9,9 +9,10 @@ pub struct Entity {
     pub entity_type_id: String,
     pub name: String,
     pub summary: Option<String>,
-    pub cover_image: Option<String>, // relative path within assets/
-    pub visibility: String,          // 'private' | 'beta' | 'public'
+    pub cover_image: Option<String>,
+    pub visibility: String,
     pub sort_order: i64,
+    pub folder_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub deleted_at: Option<String>,
@@ -25,9 +26,11 @@ pub struct CreateEntityRequest {
     pub summary: Option<String>,
     pub visibility: Option<String>,
     pub sort_order: Option<i64>,
+    pub folder_id: Option<String>,
 }
 
 /// Input for updating an entity's metadata.
+/// `folder_id: Some(None)` = move to root; `folder_id: None` = leave unchanged.
 #[derive(Debug, Deserialize)]
 pub struct UpdateEntityRequest {
     pub name: Option<String>,
@@ -35,4 +38,5 @@ pub struct UpdateEntityRequest {
     pub cover_image: Option<String>,
     pub visibility: Option<String>,
     pub sort_order: Option<i64>,
+    pub folder_id: Option<Option<String>>,
 }
