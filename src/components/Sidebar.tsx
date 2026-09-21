@@ -316,6 +316,7 @@ function EntityRow({
   const [draftName, setDraftName] = useState(entity.name);
   const [dragOver, setDragOver] = useState<'above' | 'below' | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSelected = selectedEntityId === entity.id;
 
   useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
@@ -334,14 +335,14 @@ function EntityRow({
 
   function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
     if (!useAppStore.getState().draggingId) return;
+    if (leaveTimerRef.current !== null) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
     event.preventDefault();
     event.stopPropagation();
     setDragOver(getZone(event));
   }
 
-  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
-    if (event.currentTarget.contains(event.relatedTarget as Node)) return;
-    setDragOver(null);
+  function handleDragLeave() {
+    leaveTimerRef.current = setTimeout(() => { setDragOver(null); leaveTimerRef.current = null; }, 80);
   }
 
   async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
@@ -543,6 +544,7 @@ function EntityFolderRow({
   const [draftName, setDraftName] = useState(folder.name);
   const [dragOver, setDragOver] = useState<'above' | 'into' | 'below' | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const entities = entitiesByFolder[folder.id] ?? null;
 
   useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
@@ -564,6 +566,7 @@ function EntityFolderRow({
 
   function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
     if (!useAppStore.getState().draggingId) return;
+    if (leaveTimerRef.current !== null) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
     event.preventDefault();
     event.stopPropagation();
     const state = useAppStore.getState();
@@ -573,9 +576,8 @@ function EntityFolderRow({
     setDragOver(isFolder && zone === 'into' ? 'below' : zone);
   }
 
-  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
-    if (event.currentTarget.contains(event.relatedTarget as Node)) return;
-    setDragOver(null);
+  function handleDragLeave() {
+    leaveTimerRef.current = setTimeout(() => { setDragOver(null); leaveTimerRef.current = null; }, 80);
   }
 
   async function handleFolderDrop(event: React.DragEvent<HTMLDivElement>) {
@@ -785,17 +787,18 @@ function EntityFolderRow({
 function WorldEndDropZone() {
   const { setDraggingId } = useAppStore();
   const [isDragOver, setIsDragOver] = useState(false);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
     if (!useAppStore.getState().draggingId) return;
+    if (leaveTimerRef.current !== null) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
     event.preventDefault();
     event.stopPropagation();
     setIsDragOver(true);
   }
 
-  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
-    if (event.currentTarget.contains(event.relatedTarget as Node)) return;
-    setIsDragOver(false);
+  function handleDragLeave() {
+    leaveTimerRef.current = setTimeout(() => { setIsDragOver(false); leaveTimerRef.current = null; }, 80);
   }
 
   async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
