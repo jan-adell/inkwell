@@ -32,11 +32,11 @@ const NODE_ICON: Record<string, React.ElementType> = {
 };
 
 function ListEndDropZone({ parentId, index, depth }: { parentId: string | null; index: number; depth: number }) {
-  const { moveDocument } = useAppStore();
+  const { moveDocument, setDraggingId } = useAppStore();
   const [isDragOver, setIsDragOver] = useState(false);
 
   function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
-    if (!event.dataTransfer.types.includes("text/plain")) return;
+    if (!useAppStore.getState().draggingId) return;
     event.preventDefault();
     event.stopPropagation();
     setIsDragOver(true);
@@ -50,16 +50,17 @@ function ListEndDropZone({ parentId, index, depth }: { parentId: string | null; 
   async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     event.stopPropagation();
-    const draggedId = event.dataTransfer.getData("text/plain");
+    const draggedId = event.dataTransfer.getData("text/plain") || useAppStore.getState().draggingId || "";
     setIsDragOver(false);
+    setDraggingId(null);
     if (!draggedId) return;
     moveDocument(draggedId, parentId, index);
     const newList = parentId === null
       ? useAppStore.getState().rootDocuments
       : useAppStore.getState().childrenMap[parentId] ?? [];
     void Promise.all(
-      newList.map((d, i) => invokeUpdateDocument(d.id, { sort_order: i, parent_id: parentId }).catch(() => {}))
-    );
+      newList.map((d, i) => invokeUpdateDocument(d.id, { sort_order: i, parent_id: parentId }))
+    ).catch(console.error);
   }
 
   return (
@@ -85,6 +86,7 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
     removeDocument,
     updateDocument,
     moveDocument,
+    setDraggingId,
   } = useAppStore();
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -161,10 +163,11 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
   function handleDragStart(event: React.DragEvent) {
     event.dataTransfer.setData("text/plain", doc.id);
     event.dataTransfer.effectAllowed = "move";
+    setDraggingId(doc.id);
   }
 
   function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
-    if (!event.dataTransfer.types.includes("text/plain")) return;
+    if (!useAppStore.getState().draggingId) return;
     event.preventDefault();
     event.stopPropagation();
     setDragOver(getDropZone(event));
@@ -178,8 +181,9 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
   async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     event.stopPropagation();
-    const draggedId = event.dataTransfer.getData("text/plain");
+    const draggedId = event.dataTransfer.getData("text/plain") || useAppStore.getState().draggingId || "";
     setDragOver(null);
+    setDraggingId(null);
     if (!draggedId || draggedId === doc.id) return;
     const zone = getDropZone(event);
     const state = useAppStore.getState();
@@ -187,14 +191,22 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
     if (zone === 'into') {
       moveDocument(draggedId, doc.id, 0);
       setExpanded(true);
-      void invokeUpdateDocument(draggedId, { parent_id: doc.id, sort_order: 0 })
+      invokeListChildDocuments(doc.id)
+        .then(kidsBeforeMove => {
+          const others = kidsBeforeMove.filter(k => k.id !== draggedId);
+          return Promise.all([
+            invokeUpdateDocument(draggedId, { parent_id: doc.id, sort_order: 0 }),
+            ...others.map((k, i) => invokeUpdateDocument(k.id, { parent_id: doc.id, sort_order: i + 1 })),
+          ]);
+        })
         .then(() => invokeListChildDocuments(doc.id))
-        .then((kids) => setChildren(doc.id, kids))
-        .catch(() => {});
+        .then(kids => setChildren(doc.id, kids))
+        .catch(console.error);
     } else {
       const parentId = doc.parent_id ?? null;
       const list = parentId === null ? state.rootDocuments : (state.childrenMap[parentId] ?? []);
-      let idx = list.findIndex((d) => d.id === doc.id);
+      const filteredList = list.filter(d => d.id !== draggedId);
+      let idx = filteredList.findIndex(d => d.id === doc.id);
       if (idx === -1) return;
       if (zone === 'below') idx += 1;
       moveDocument(draggedId, parentId, idx);
@@ -202,8 +214,8 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
         ? useAppStore.getState().rootDocuments
         : useAppStore.getState().childrenMap[parentId] ?? [];
       void Promise.all(
-        newList.map((d, i) => invokeUpdateDocument(d.id, { sort_order: i, parent_id: parentId }).catch(() => {}))
-      );
+        newList.map((d, i) => invokeUpdateDocument(d.id, { sort_order: i, parent_id: parentId }))
+      ).catch(console.error);
     }
   }
 
@@ -216,7 +228,7 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        onDragEnd={() => setDragOver(null)}
+        onDragEnd={() => { setDragOver(null); setDraggingId(null); }}
         onDrop={handleDrop}
         className={`group flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors ${editing ? "bg-ink-muted" : "cursor-move"} ${isSelected && !editing ? "bg-gold/20 text-gold" : "text-ivory-dim hover:bg-ink-muted hover:text-ivory"} ${dragOver === 'into' ? 'ring-1 ring-gold/70 bg-gold/10' : ''}`}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
