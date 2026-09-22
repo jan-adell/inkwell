@@ -61,9 +61,50 @@ export interface Entity {
   cover_image: string | null;
   visibility: "private" | "beta" | "public";
   sort_order: number;
+  folder_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+export interface EntityFolder {
+  id: string;
+  project_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+export type FieldType =
+  | "text" | "textarea" | "number" | "boolean" | "date"
+  | "select" | "multiselect" | "entity_ref" | "url" | "color" | "image";
+
+export interface FieldDefinition {
+  id: string;
+  entity_type_id: string;
+  name: string;
+  label: string;
+  field_type: FieldType;
+  options: string | null;
+  default_value: string | null;
+  is_required: boolean;
+  visibility: string;
+  sort_order: number;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+export interface FieldValue {
+  id: string;
+  entity_id: string;
+  field_def_id: string;
+  value_text: string | null;
+  value_number: number | null;
+  value_boolean: boolean | null;
+  value_date: string | null;
+  value_json: string | null;
+  updated_at: string;
 }
 
 export type NodeType = Document["node_type"];

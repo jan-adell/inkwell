@@ -35,6 +35,11 @@ pub fn all_migrations() -> Vec<Migration> {
             name: "editor_and_assets",
             sql: include_str!("migrations/003_editor_and_assets.sql"),
         },
+        Migration {
+            version: 4,
+            name: "entity_folders",
+            sql: include_str!("migrations/004_entity_folders.sql"),
+        },
     ]
 }
 

@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { useAppStore } from "../store/appStore";
+import { ENTITY_HIGHLIGHT_KEY, EntityHighlightExtension } from "../extensions/entityHighlight";
 
 interface Props {
   mode: "prose" | "notes";
@@ -27,6 +29,7 @@ function buildExtensions(mode: "prose" | "notes") {
       horizontalRule: false,
       strike: false,
     }),
+    EntityHighlightExtension,
   ];
 }
 
@@ -40,6 +43,11 @@ export function RichTextEditor({ mode, value, onChange, onEditorReady, placehold
 
   const onEditorReadyRef = useRef(onEditorReady);
   onEditorReadyRef.current = onEditorReady;
+
+  const entitySignature = useAppStore(state => {
+    const all = [...state.rootEntities, ...Object.values(state.entitiesByFolder).flat()];
+    return all.map(e => `${e.id}:${e.name}`).join(",");
+  });
 
   const editor = useEditor({
     extensions: buildExtensions(mode),
@@ -73,6 +81,11 @@ export function RichTextEditor({ mode, value, onChange, onEditorReady, placehold
       onEditorReadyRef.current?.(null);
     };
   }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.view.dispatch(editor.state.tr.setMeta(ENTITY_HIGHLIGHT_KEY, "refresh"));
+  }, [entitySignature, editor]);
 
   useEffect(() => {
     if (!editor) return;

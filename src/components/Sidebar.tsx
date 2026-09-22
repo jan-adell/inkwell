@@ -7,8 +7,15 @@ import {
   invokeDeleteDocument,
   invokeListEntityTypes,
   invokeUpdateDocument,
+  invokeListEntityFolders,
+  invokeUpdateEntityFolder,
+  invokeDeleteEntityFolder,
+  invokeListRootEntities,
+  invokeListEntitiesByFolder,
+  invokeUpdateEntity,
+  invokeDeleteEntity,
 } from "../hooks/useTauri";
-import type { Document } from "../types/core";
+import type { Document, Entity, EntityFolder, EntityType } from "../types/core";
 
 const STATUS_LABELS: Record<Document["status"], string> = {
   idea: "Idea",
@@ -291,6 +298,572 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
   );
 }
 
+function EntityRow({
+  entity,
+  entityType,
+  parentFolderId,
+  onDeleted,
+  onRenamed,
+}: {
+  entity: Entity;
+  entityType: EntityType | undefined;
+  parentFolderId: string | null;
+  onDeleted: (id: string) => void;
+  onRenamed: (updated: Entity) => void;
+}) {
+  const { selectedEntityId, setSelectedEntityId, setDraggingId } = useAppStore();
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(entity.name);
+  const [dragOver, setDragOver] = useState<'above' | 'below' | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSelected = selectedEntityId === entity.id;
+
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+  useEffect(() => { if (!editing) setDraftName(entity.name); }, [entity.name, editing]);
+
+  function getZone(event: React.DragEvent<HTMLDivElement>): 'above' | 'below' {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return event.clientY < rect.top + rect.height / 2 ? 'above' : 'below';
+  }
+
+  function handleDragStart(event: React.DragEvent) {
+    event.dataTransfer.setData("text/plain", entity.id);
+    event.dataTransfer.effectAllowed = "move";
+    setDraggingId(entity.id);
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!useAppStore.getState().draggingId) return;
+    if (leaveTimerRef.current !== null) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
+    event.preventDefault();
+    event.stopPropagation();
+    setDragOver(getZone(event));
+  }
+
+  function handleDragLeave() {
+    leaveTimerRef.current = setTimeout(() => { setDragOver(null); leaveTimerRef.current = null; }, 80);
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    const draggedId = event.dataTransfer.getData("text/plain") || useAppStore.getState().draggingId || "";
+    const zone = getZone(event);
+    setDragOver(null);
+    setDraggingId(null);
+    if (!draggedId || draggedId === entity.id) return;
+
+    const state = useAppStore.getState();
+
+    if (state.entityFolders.some((f) => f.id === draggedId)) return;
+
+    const { folderId: fromFolderId, list: fromList } = findEntityContext(draggedId, state);
+    if (!fromList.some((e) => e.id === draggedId)) return;
+
+    const targetFolderId = parentFolderId;
+    const toList = targetFolderId === null
+      ? [...state.rootEntities]
+      : [...(state.entitiesByFolder[targetFolderId] ?? [])];
+
+    if (fromFolderId === targetFolderId) {
+      if (targetFolderId === null) {
+        const merged = getMergedRootItems(state).filter(item => item.id !== draggedId);
+        const targetIdx = merged.findIndex(item => item.id === entity.id);
+        if (targetIdx === -1) return;
+        const insertAt = zone === 'below' ? targetIdx + 1 : targetIdx;
+        merged.splice(insertAt, 0, { kind: 'entity', id: draggedId, sort_order: 0 });
+        void applyMergedReorder(merged, state);
+      } else {
+        const filteredList = toList.filter((e) => e.id !== draggedId);
+        let idx = filteredList.findIndex((e) => e.id === entity.id);
+        if (idx === -1) return;
+        if (zone === 'below') idx += 1;
+        const dragged = toList.find((e) => e.id === draggedId)!;
+        filteredList.splice(idx, 0, dragged);
+        state.setEntitiesForFolder(targetFolderId, filteredList);
+        void Promise.all(filteredList.map((e, i) => invokeUpdateEntity(e.id, { sort_order: i }))).catch(console.error);
+      }
+    } else {
+      const dragged = fromList.find((e) => e.id === draggedId)!;
+      const updatedFromList = fromList.filter((e) => e.id !== draggedId);
+      if (fromFolderId === null) state.setRootEntities(updatedFromList);
+      else state.setEntitiesForFolder(fromFolderId, updatedFromList);
+
+      const filteredTo = toList.filter((e) => e.id !== draggedId);
+      let idx = filteredTo.findIndex((e) => e.id === entity.id);
+      if (idx === -1) idx = filteredTo.length;
+      else if (zone === 'below') idx += 1;
+      filteredTo.splice(idx, 0, { ...dragged, folder_id: targetFolderId });
+      if (targetFolderId === null) state.setRootEntities(filteredTo);
+      else state.setEntitiesForFolder(targetFolderId, filteredTo);
+
+      void Promise.all([
+        ...updatedFromList.map((e, i) => invokeUpdateEntity(e.id, { sort_order: i })),
+        ...filteredTo.map((e, i) =>
+          invokeUpdateEntity(e.id, { sort_order: i, ...(e.id === draggedId ? { folder_id: targetFolderId } : {}) })
+        ),
+      ]).catch(console.error);
+    }
+  }
+
+  async function handleDelete(event: React.MouseEvent) {
+    event.stopPropagation();
+    await invokeDeleteEntity(entity.id);
+    onDeleted(entity.id);
+  }
+
+  function startEditing(event: React.MouseEvent) {
+    event.stopPropagation();
+    setDraftName(entity.name);
+    setEditing(true);
+  }
+
+  async function commitRename() {
+    const trimmed = draftName.trim() || entity.name;
+    setEditing(false);
+    if (trimmed === entity.name) return;
+    try {
+      const updated = await invokeUpdateEntity(entity.id, { name: trimmed });
+      onRenamed(updated);
+    } catch {
+      setDraftName(entity.name);
+    }
+  }
+
+  function handleInputKey(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") event.currentTarget.blur();
+    if (event.key === "Escape") {
+      setDraftName(entity.name);
+      setEditing(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      {dragOver === 'above' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-gold/70 z-10 pointer-events-none" />}
+      {dragOver === 'below' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold/70 z-10 pointer-events-none" />}
+      <div
+        draggable={!editing}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDragEnd={() => { setDragOver(null); setDraggingId(null); }}
+        onDrop={handleDrop}
+        className={`group flex items-center gap-2 px-2 py-1 rounded text-sm transition-colors ${editing ? "bg-ink-muted" : "cursor-move"} ${isSelected && !editing ? "bg-gold/20 text-gold" : "text-ivory-dim hover:bg-ink-muted hover:text-ivory"}`}
+        style={{ paddingLeft: "24px" }}
+        onClick={() => { if (!editing) setSelectedEntityId(entity.id); }}
+      >
+        <span
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ backgroundColor: entityType?.color ?? "#c9a84c" }}
+        />
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={draftName}
+            onChange={(event) => setDraftName(event.target.value)}
+            onBlur={commitRename}
+            onKeyDown={handleInputKey}
+            onClick={(event) => event.stopPropagation()}
+            className="flex-1 min-w-0 bg-transparent text-ivory text-sm focus:outline-none selectable"
+          />
+        ) : (
+          <span className="flex-1 min-w-0 truncate" onDoubleClick={startEditing}>{entity.name}</span>
+        )}
+        {!editing && (
+          <>
+            <span className="text-[10px] text-ivory-ghost flex-shrink-0">{entityType?.name ?? ""}</span>
+            <button
+              onClick={handleDelete}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-ivory-ghost hover:text-crimson transition-all"
+              title="Delete entity"
+            >
+              <Trash2 size={11} />
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function findEntityContext(
+  entityId: string,
+  state: ReturnType<typeof useAppStore.getState>,
+): { folderId: string | null; list: Entity[] } {
+  if (state.rootEntities.some((e) => e.id === entityId))
+    return { folderId: null, list: state.rootEntities };
+  for (const [folderId, entities] of Object.entries(state.entitiesByFolder)) {
+    if (entities.some((e) => e.id === entityId))
+      return { folderId, list: entities };
+  }
+  return { folderId: null, list: [] };
+}
+
+export type MergedItem = { kind: 'folder'; id: string; sort_order: number } | { kind: 'entity'; id: string; sort_order: number };
+
+export function getMergedRootItems(state: ReturnType<typeof useAppStore.getState>): MergedItem[] {
+  return [
+    ...state.entityFolders.map(f => ({ kind: 'folder' as const, id: f.id, sort_order: f.sort_order })),
+    ...state.rootEntities.map(e => ({ kind: 'entity' as const, id: e.id, sort_order: e.sort_order })),
+  ].sort((a, b) => a.sort_order - b.sort_order || (a.kind === 'folder' ? -1 : 1));
+}
+
+async function applyMergedReorder(
+  newMerged: MergedItem[],
+  state: ReturnType<typeof useAppStore.getState>,
+) {
+  const updatedFolders = state.entityFolders.map(f => ({
+    ...f, sort_order: newMerged.findIndex(item => item.id === f.id),
+  }));
+  const updatedEntities = state.rootEntities.map(e => ({
+    ...e, sort_order: newMerged.findIndex(item => item.id === e.id),
+  }));
+  state.setEntityFolders(updatedFolders);
+  state.setRootEntities(updatedEntities);
+  void Promise.all([
+    ...updatedFolders.map(f => invokeUpdateEntityFolder(f.id, { sort_order: f.sort_order })),
+    ...updatedEntities.map(e => invokeUpdateEntity(e.id, { sort_order: e.sort_order })),
+  ]).catch(console.error);
+}
+
+function EntityFolderRow({
+  folder,
+  projectId,
+  entityTypes,
+}: {
+  folder: EntityFolder;
+  projectId: string;
+  entityTypes: EntityType[];
+}) {
+  const { entitiesByFolder, setEntitiesForFolder, entityFolders, setEntityFolders, setDraggingId } = useAppStore();
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(folder.name);
+  const [dragOver, setDragOver] = useState<'above' | 'into' | 'below' | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const entities = entitiesByFolder[folder.id] ?? null;
+
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+  useEffect(() => { if (!editing) setDraftName(folder.name); }, [folder.name, editing]);
+
+  function getZone(event: React.DragEvent<HTMLDivElement>): 'above' | 'into' | 'below' {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientY - rect.top) / rect.height;
+    if (ratio < 0.3) return 'above';
+    if (ratio > 0.7) return 'below';
+    return 'into';
+  }
+
+  function handleDragStart(event: React.DragEvent) {
+    event.dataTransfer.setData("text/plain", folder.id);
+    event.dataTransfer.effectAllowed = "move";
+    setDraggingId(folder.id);
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!useAppStore.getState().draggingId) return;
+    if (leaveTimerRef.current !== null) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
+    event.preventDefault();
+    event.stopPropagation();
+    const state = useAppStore.getState();
+    const draggedId = state.draggingId ?? "";
+    const isFolder = state.entityFolders.some((f) => f.id === draggedId);
+    const zone = getZone(event);
+    setDragOver(isFolder && zone === 'into' ? 'below' : zone);
+  }
+
+  function handleDragLeave() {
+    leaveTimerRef.current = setTimeout(() => { setDragOver(null); leaveTimerRef.current = null; }, 80);
+  }
+
+  async function handleFolderDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    const draggedId = event.dataTransfer.getData("text/plain") || useAppStore.getState().draggingId || "";
+    const zone = getZone(event);
+    setDragOver(null);
+    setDraggingId(null);
+    if (!draggedId || draggedId === folder.id) return;
+
+    const state = useAppStore.getState();
+    const isFolder = state.entityFolders.some((f) => f.id === draggedId);
+
+    if (isFolder) {
+      const effectiveZone = zone === 'into' ? 'below' : zone;
+      const merged = getMergedRootItems(state).filter(item => item.id !== draggedId);
+      const targetIdx = merged.findIndex(item => item.id === folder.id);
+      if (targetIdx === -1) return;
+      const insertAt = effectiveZone === 'below' ? targetIdx + 1 : targetIdx;
+      const dragged = state.entityFolders.find(f => f.id === draggedId);
+      if (!dragged) return;
+      merged.splice(insertAt, 0, { kind: 'folder', id: draggedId, sort_order: 0 });
+      void applyMergedReorder(merged, state);
+      return;
+    }
+
+    if (zone === 'into') {
+      const { folderId: fromFolderId, list: fromList } = findEntityContext(draggedId, state);
+      if (fromFolderId === folder.id) return;
+      const dragged = fromList.find((e) => e.id === draggedId);
+      if (!dragged) return;
+
+      const updatedFromList = fromList.filter((e) => e.id !== draggedId);
+      if (fromFolderId === null) state.setRootEntities(updatedFromList);
+      else state.setEntitiesForFolder(fromFolderId, updatedFromList);
+
+      const folderEntities = [...(state.entitiesByFolder[folder.id] ?? [])];
+      state.setEntitiesForFolder(folder.id, [...folderEntities, { ...dragged, folder_id: folder.id }]);
+      if (!expanded) setExpanded(true);
+
+      void Promise.all([
+        invokeUpdateEntity(draggedId, { folder_id: folder.id, sort_order: folderEntities.length }),
+        ...updatedFromList.map((e, i) => invokeUpdateEntity(e.id, { sort_order: i })),
+      ]).catch(console.error);
+      return;
+    }
+
+    // Entity dropped above/below folder → move to root at this merged-list position
+    const { folderId: fromFolderId, list: fromList } = findEntityContext(draggedId, state);
+    const dragged = fromList.find((e) => e.id === draggedId);
+    if (!dragged) return;
+
+    const updatedFromList = fromList.filter((e) => e.id !== draggedId);
+    if (fromFolderId !== null) state.setEntitiesForFolder(fromFolderId, updatedFromList);
+
+    const stateAfterRemove = {
+      ...state,
+      rootEntities: fromFolderId === null ? updatedFromList : state.rootEntities,
+    };
+    const merged = getMergedRootItems(stateAfterRemove).filter(item => item.id !== draggedId);
+    const targetIdx = merged.findIndex(item => item.id === folder.id);
+    if (targetIdx === -1) return;
+    const insertAt = zone === 'below' ? targetIdx + 1 : targetIdx;
+    merged.splice(insertAt, 0, { kind: 'entity', id: draggedId, sort_order: 0 });
+
+    const movedEntity = { ...dragged, folder_id: null as null };
+    const newRootEntities = [...stateAfterRemove.rootEntities.filter(e => e.id !== draggedId), movedEntity];
+    state.setRootEntities(newRootEntities);
+
+    const updatedFolders = state.entityFolders.map(f => ({ ...f, sort_order: merged.findIndex(item => item.id === f.id) }));
+    const updatedEntities = newRootEntities.map(e => ({ ...e, sort_order: merged.findIndex(item => item.id === e.id) }));
+    state.setEntityFolders(updatedFolders);
+    state.setRootEntities(updatedEntities);
+
+    void Promise.all([
+      ...updatedFolders.map(f => invokeUpdateEntityFolder(f.id, { sort_order: f.sort_order })),
+      ...updatedEntities.map(e => invokeUpdateEntity(e.id, {
+        sort_order: e.sort_order,
+        ...(fromFolderId !== null && e.id === draggedId ? { folder_id: null } : {}),
+      })),
+      ...(fromFolderId !== null ? updatedFromList.map((e, i) => invokeUpdateEntity(e.id, { sort_order: i })) : []),
+    ]).catch(console.error);
+  }
+
+  async function toggle() {
+    if (editing) return;
+    if (!expanded && entities === null) {
+      setLoading(true);
+      try {
+        const items = await invokeListEntitiesByFolder(projectId, folder.id);
+        setEntitiesForFolder(folder.id, items);
+      } finally {
+        setLoading(false);
+      }
+    }
+    setExpanded((v) => !v);
+  }
+
+  async function handleDeleteFolder(event: React.MouseEvent) {
+    event.stopPropagation();
+    await invokeDeleteEntityFolder(folder.id);
+    setEntityFolders(entityFolders.filter((f) => f.id !== folder.id));
+  }
+
+  function startEditing(event: React.MouseEvent) {
+    event.stopPropagation();
+    setDraftName(folder.name);
+    setEditing(true);
+  }
+
+  async function commitRename() {
+    const trimmed = draftName.trim() || folder.name;
+    setEditing(false);
+    if (trimmed === folder.name) return;
+    try {
+      const updated = await invokeUpdateEntityFolder(folder.id, { name: trimmed });
+      setEntityFolders(entityFolders.map((f) => (f.id === updated.id ? updated : f)));
+    } catch {
+      setDraftName(folder.name);
+    }
+  }
+
+  function handleInputKey(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") event.currentTarget.blur();
+    if (event.key === "Escape") {
+      setDraftName(folder.name);
+      setEditing(false);
+    }
+  }
+
+  function handleEntityRenamed(updated: Entity) {
+    const current = useAppStore.getState().entitiesByFolder[folder.id] ?? [];
+    setEntitiesForFolder(folder.id, current.map((e) => (e.id === updated.id ? updated : e)));
+  }
+
+  function handleEntityDeleted(id: string) {
+    const current = useAppStore.getState().entitiesByFolder[folder.id] ?? [];
+    setEntitiesForFolder(folder.id, current.filter((e) => e.id !== id));
+  }
+
+  return (
+    <div className="relative">
+      {dragOver === 'above' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-gold/70 z-10 pointer-events-none" />}
+      {dragOver === 'below' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold/70 z-10 pointer-events-none" />}
+      <div
+        draggable={!editing}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDragEnd={() => { setDragOver(null); setDraggingId(null); }}
+        onDrop={handleFolderDrop}
+        className={`group flex items-center gap-1.5 px-2 py-1 rounded text-sm text-ivory-dim hover:bg-ink-muted hover:text-ivory transition-colors ${editing ? "bg-ink-muted cursor-default" : "cursor-move"} ${dragOver === 'into' ? "ring-1 ring-gold/60 bg-gold/10" : ""}`}
+        onClick={() => void toggle()}
+      >
+        {loading ? (
+          <span className="w-3 h-3 flex-shrink-0">
+            <span className="block w-2 h-2 border border-ivory-ghost rounded-full animate-spin" />
+          </span>
+        ) : expanded ? (
+          <ChevronDown size={12} className="flex-shrink-0 text-ivory-ghost" />
+        ) : (
+          <ChevronRight size={12} className="flex-shrink-0 text-ivory-ghost" />
+        )}
+        <Folder size={13} className="flex-shrink-0 opacity-60" />
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={draftName}
+            onChange={(event) => setDraftName(event.target.value)}
+            onBlur={commitRename}
+            onKeyDown={handleInputKey}
+            onClick={(event) => event.stopPropagation()}
+            className="flex-1 min-w-0 bg-transparent text-ivory text-xs font-medium uppercase tracking-wider focus:outline-none selectable"
+          />
+        ) : (
+          <span className="flex-1 min-w-0 truncate text-xs font-medium uppercase tracking-wider" onDoubleClick={startEditing}>{folder.name}</span>
+        )}
+        {!editing && (
+          <button
+            onClick={handleDeleteFolder}
+            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-ivory-ghost hover:text-crimson transition-all"
+            title="Delete folder"
+          >
+            <Trash2 size={11} />
+          </button>
+        )}
+      </div>
+      {expanded && (
+        <div>
+          {(entities ?? []).map((entity) => (
+            <EntityRow
+              key={entity.id}
+              entity={entity}
+              entityType={entityTypes.find((t) => t.id === entity.entity_type_id)}
+              parentFolderId={folder.id}
+              onDeleted={handleEntityDeleted}
+              onRenamed={handleEntityRenamed}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WorldEndDropZone() {
+  const { setDraggingId } = useAppStore();
+  const [isDragOver, setIsDragOver] = useState(false);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!useAppStore.getState().draggingId) return;
+    if (leaveTimerRef.current !== null) { clearTimeout(leaveTimerRef.current); leaveTimerRef.current = null; }
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(true);
+  }
+
+  function handleDragLeave() {
+    leaveTimerRef.current = setTimeout(() => { setIsDragOver(false); leaveTimerRef.current = null; }, 80);
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    const draggedId = event.dataTransfer.getData("text/plain") || useAppStore.getState().draggingId || "";
+    setIsDragOver(false);
+    setDraggingId(null);
+    if (!draggedId) return;
+
+    const state = useAppStore.getState();
+    const isFolder = state.entityFolders.some(f => f.id === draggedId);
+
+    if (isFolder) {
+      const merged = getMergedRootItems(state).filter(item => item.id !== draggedId);
+      merged.push({ kind: 'folder', id: draggedId, sort_order: 0 });
+      void applyMergedReorder(merged, state);
+      return;
+    }
+
+    const { folderId: fromFolderId, list: fromList } = findEntityContext(draggedId, state);
+    const dragged = fromList.find(e => e.id === draggedId);
+    if (!dragged) return;
+
+    const updatedFromList = fromList.filter(e => e.id !== draggedId);
+    if (fromFolderId !== null) state.setEntitiesForFolder(fromFolderId, updatedFromList);
+
+    const stateAfterRemove = {
+      ...state,
+      rootEntities: fromFolderId === null ? updatedFromList : state.rootEntities,
+    };
+    const merged = getMergedRootItems(stateAfterRemove).filter(item => item.id !== draggedId);
+    merged.push({ kind: 'entity', id: draggedId, sort_order: 0 });
+
+    const movedEntity = { ...dragged, folder_id: null as null };
+    const newRootEntities = [...stateAfterRemove.rootEntities.filter(e => e.id !== draggedId), movedEntity];
+    const updatedFolders = state.entityFolders.map(f => ({ ...f, sort_order: merged.findIndex(item => item.id === f.id) }));
+    const updatedEntities = newRootEntities.map(e => ({ ...e, sort_order: merged.findIndex(item => item.id === e.id) }));
+    state.setEntityFolders(updatedFolders);
+    state.setRootEntities(updatedEntities);
+
+    void Promise.all([
+      ...updatedFolders.map(f => invokeUpdateEntityFolder(f.id, { sort_order: f.sort_order })),
+      ...updatedEntities.map(e => invokeUpdateEntity(e.id, {
+        sort_order: e.sort_order,
+        ...(fromFolderId !== null && e.id === draggedId ? { folder_id: null } : {}),
+      })),
+      ...(fromFolderId !== null ? updatedFromList.map((e, i) => invokeUpdateEntity(e.id, { sort_order: i })) : []),
+    ]).catch(console.error);
+  }
+
+  return (
+    <div
+      className="relative mx-1"
+      style={{ height: isDragOver ? '16px' : '8px' }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDragEnd={() => setIsDragOver(false)}
+      onDrop={handleDrop}
+    >
+      {isDragOver && <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-gold/70 rounded" />}
+    </div>
+  );
+}
+
 export function Sidebar() {
   const {
     activeView,
@@ -300,14 +873,28 @@ export function Sidebar() {
     setRootDocuments,
     entityTypes,
     setEntityTypes,
-    setShowCreateEntityModal,
+    entityFolders,
+    setEntityFolders,
+    rootEntities,
+    setRootEntities,
+    setEntitiesForFolder,
     setShowCreateDocumentModal,
+    setShowCreateEntityModal,
   } = useAppStore();
 
   useEffect(() => {
     if (!projectId) return;
     invokeListRootDocuments(projectId).then(setRootDocuments).catch(console.error);
     invokeListEntityTypes(projectId).then(setEntityTypes).catch(console.error);
+    invokeListEntityFolders(projectId).then(folders => {
+      setEntityFolders(folders);
+      folders.forEach(folder => {
+        invokeListEntitiesByFolder(projectId, folder.id)
+          .then(entities => setEntitiesForFolder(folder.id, entities))
+          .catch(console.error);
+      });
+    }).catch(console.error);
+    invokeListRootEntities(projectId).then(setRootEntities).catch(console.error);
   }, [projectId]);
 
   return (
@@ -336,7 +923,7 @@ export function Sidebar() {
             className="w-full flex items-center justify-center gap-1.5 py-2 rounded text-xs text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"
           >
             <Plus size={13} />
-            New Entity
+            Add New
           </button>
         </div>
       )}
@@ -359,23 +946,33 @@ export function Sidebar() {
             )}
           </>
         ) : (
-          <div className="px-2 py-2 space-y-1">
-            {entityTypes.length === 0 ? (
-              <p className="px-2 py-6 text-xs text-ivory-ghost text-center">No entity types yet.</p>
-            ) : (
-              entityTypes.map((entityType) => (
-                <div
-                  key={entityType.id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-ivory-dim hover:bg-ink-muted hover:text-ivory cursor-pointer transition-colors"
-                >
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: entityType.color ?? "#c9a84c" }}
+          <div className="px-1 py-1 space-y-0.5">
+            {[
+              ...entityFolders.map(f => ({ kind: 'folder' as const, id: f.id, sort_order: f.sort_order })),
+              ...rootEntities.map(e => ({ kind: 'entity' as const, id: e.id, sort_order: e.sort_order })),
+            ]
+              .sort((a, b) => a.sort_order - b.sort_order || (a.kind === 'folder' ? -1 : 1))
+              .map(item =>
+                item.kind === 'folder' ? (
+                  <EntityFolderRow
+                    key={item.id}
+                    folder={entityFolders.find(f => f.id === item.id)!}
+                    projectId={projectId!}
+                    entityTypes={entityTypes}
                   />
-                  {entityType.name_plural ?? entityType.name}
-                </div>
-              ))
-            )}
+                ) : (
+                  <EntityRow
+                    key={item.id}
+                    entity={rootEntities.find(e => e.id === item.id)!}
+                    entityType={entityTypes.find((t) => t.id === rootEntities.find(e => e.id === item.id)?.entity_type_id)}
+                    parentFolderId={null}
+                    onDeleted={(id) => setRootEntities(rootEntities.filter((e) => e.id !== id))}
+                    onRenamed={(updated) => setRootEntities(rootEntities.map((e) => (e.id === updated.id ? updated : e)))}
+                  />
+                )
+              )
+            }
+            <WorldEndDropZone />
           </div>
         )}
       </div>

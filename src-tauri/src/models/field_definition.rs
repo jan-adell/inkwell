@@ -12,6 +12,7 @@ pub const VALID_FIELD_TYPES: &[&str] = &[
     "entity_ref",
     "url",
     "color",
+    "image",
 ];
 
 /// A custom field definition for an entity type.

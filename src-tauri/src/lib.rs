@@ -14,6 +14,11 @@ pub fn run() {
         .setup(|_app| Ok(()))
         .invoke_handler(tauri::generate_handler![
             commands::core::initialize_core,
+            // Entity folders
+            commands::entity_folders::create_entity_folder,
+            commands::entity_folders::list_entity_folders,
+            commands::entity_folders::update_entity_folder,
+            commands::entity_folders::delete_entity_folder,
             // Entity types
             commands::entity_types::create_entity_type,
             commands::entity_types::get_entity_type,
@@ -25,6 +30,8 @@ pub fn run() {
             commands::entities::get_entity,
             commands::entities::list_entities,
             commands::entities::list_entities_by_type,
+            commands::entities::list_root_entities,
+            commands::entities::list_entities_by_folder,
             commands::entities::update_entity,
             commands::entities::delete_entity,
             // Field definitions

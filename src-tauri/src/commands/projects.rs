@@ -277,6 +277,7 @@ pub async fn create_project(
     )?;
 
     crate::db::project_repo::create(&new_conn, &project_id, &name)?;
+    crate::db::entity_type_repo::seed_defaults(&new_conn, &project_id)?;
     registry::register(&app_data_dir, &project_id, &name, &project_dir)?;
 
     let mut conn_guard = state
@@ -329,6 +330,7 @@ pub async fn open_project(
             e.to_string(),
         ))
     })?;
+    crate::db::entity_type_repo::seed_defaults(&new_conn, &project_id)?;
     registry::register(&app_data_dir, &project_id, &project_name, &project_path)?;
 
     let mut conn_guard = state

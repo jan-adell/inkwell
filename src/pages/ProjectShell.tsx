@@ -1,8 +1,11 @@
-import { FileText, Map, Clock, Search, Settings, Folder } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileText, Map, Clock, Search, Settings, Folder, BookOpen, Globe } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { CreateEntityModal } from "../components/CreateEntityModal";
 import { CreateDocumentModal } from "../components/CreateDocumentModal";
 import { DocumentEditor } from "../components/DocumentEditor";
+import { EntityDetail } from "../components/EntityDetail";
+import { EntityPanel } from "../components/EntityPanel";
 import { useAppStore } from "../store/appStore";
 import { invokeUpdateDocument } from "../hooks/useTauri";
 import type { Document } from "../types/core";
@@ -21,7 +24,7 @@ const STATUS_COLORS: Record<Document["status"], string> = {
   final: "text-emerald-400",
 };
 
-function Inspector() {
+function DocInspectorContent() {
   const { selectedDocumentId, rootDocuments, childrenMap, updateDocument } = useAppStore();
   const document = [...rootDocuments, ...Object.values(childrenMap).flat()]
     .find((item) => item.id === selectedDocumentId);
@@ -35,58 +38,107 @@ function Inspector() {
     }
   }
 
+  if (!document) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center">
+        <FileText size={24} className="text-ivory-ghost opacity-30 mb-2" />
+        <p className="text-xs text-ivory-ghost">Select a document</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-xs text-ivory-ghost uppercase tracking-wider mb-1">Document</p>
+        <p className="text-sm text-ivory break-words">{document.title}</p>
+      </div>
+      <div className="space-y-1">
+        <div className="flex justify-between items-center py-2 border-b border-ink-border">
+          <span className="text-xs text-ivory-ghost">Status</span>
+          <select
+            value={document.status}
+            onChange={(event) => handleStatusChange(event.target.value as Document["status"])}
+            className={`bg-transparent text-xs font-mono focus:outline-none cursor-pointer ${STATUS_COLORS[document.status]}`}
+          >
+            {(Object.keys(STATUS_LABELS) as Document["status"][]).map((status) => (
+              <option key={status} value={status} className="bg-ink-deep text-ivory">
+                {STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-between items-center py-2 border-b border-ink-border">
+          <span className="text-xs text-ivory-ghost">Words</span>
+          <span className="text-xs text-ivory-dim">{document.word_count}</span>
+        </div>
+        <div className="flex justify-between items-center py-2 border-b border-ink-border">
+          <span className="text-xs text-ivory-ghost">Created</span>
+          <span className="text-xs text-ivory-dim">{new Date(document.created_at).toLocaleDateString()}</span>
+        </div>
+        <div className="flex justify-between items-center py-2 border-b border-ink-border">
+          <span className="text-xs text-ivory-ghost">Modified</span>
+          <span className="text-xs text-ivory-dim">{new Date(document.updated_at).toLocaleDateString()}</span>
+        </div>
+      </div>
+      {document.synopsis && (
+        <div>
+          <p className="text-xs text-ivory-ghost uppercase tracking-wider mb-1">Synopsis</p>
+          <p className="text-xs text-ivory-dim leading-relaxed">{document.synopsis}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Inspector() {
+  const [activeTab, setActiveTab] = useState<"doc" | "entity">("doc");
+  const { activeView, selectedEntityId } = useAppStore();
+
+  useEffect(() => {
+    if (selectedEntityId) setActiveTab("entity");
+  }, [selectedEntityId]);
+
+  if (activeView === "worldbuilding") {
+    return (
+      <aside className="flex flex-col h-full bg-ink-deep border-l border-ink-border w-64 flex-shrink-0 overflow-y-auto min-h-0">
+        {selectedEntityId ? (
+          <EntityDetail key={selectedEntityId} entityId={selectedEntityId} />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-center p-4">
+            <Globe size={24} className="text-ivory-ghost opacity-30 mb-2" />
+            <p className="text-xs text-ivory-ghost">Select an entity to edit</p>
+          </div>
+        )}
+      </aside>
+    );
+  }
+
   return (
     <aside className="flex flex-col h-full bg-ink-deep border-l border-ink-border w-64 flex-shrink-0">
-      <div className="px-4 py-3 border-b border-ink-border">
-        <span className="text-xs font-mono tracking-widest uppercase text-ivory-ghost">Inspector</span>
+      <div className="flex border-b border-ink-border">
+        <button
+          onClick={() => setActiveTab("doc")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-mono tracking-wider uppercase transition-colors ${activeTab === "doc" ? "text-gold border-b-2 border-gold" : "text-ivory-ghost hover:text-ivory-dim"}`}
+        >
+          <BookOpen size={11} />
+          Doc
+        </button>
+        <button
+          onClick={() => setActiveTab("entity")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-mono tracking-wider uppercase transition-colors ${activeTab === "entity" ? "text-gold border-b-2 border-gold" : "text-ivory-ghost hover:text-ivory-dim"}`}
+        >
+          <Globe size={11} />
+          Entity
+        </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        {document ? (
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs text-ivory-ghost uppercase tracking-wider mb-1">Document</p>
-              <p className="text-sm text-ivory break-words">{document.title}</p>
-            </div>
-            <div className="space-y-1">
-              <div className="flex justify-between items-center py-2 border-b border-ink-border">
-                <span className="text-xs text-ivory-ghost">Status</span>
-                <select
-                  value={document.status}
-                  onChange={(event) => handleStatusChange(event.target.value as Document["status"])}
-                  className={`bg-transparent text-xs font-mono focus:outline-none cursor-pointer ${STATUS_COLORS[document.status]}`}
-                >
-                  {(Object.keys(STATUS_LABELS) as Document["status"][]).map((status) => (
-                    <option key={status} value={status} className="bg-ink-deep text-ivory">
-                      {STATUS_LABELS[status]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-ink-border">
-                <span className="text-xs text-ivory-ghost">Words</span>
-                <span className="text-xs text-ivory-dim">{document.word_count}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-ink-border">
-                <span className="text-xs text-ivory-ghost">Created</span>
-                <span className="text-xs text-ivory-dim">{new Date(document.created_at).toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-ink-border">
-                <span className="text-xs text-ivory-ghost">Modified</span>
-                <span className="text-xs text-ivory-dim">{new Date(document.updated_at).toLocaleDateString()}</span>
-              </div>
-            </div>
-            {document.synopsis && (
-              <div>
-                <p className="text-xs text-ivory-ghost uppercase tracking-wider mb-1">Synopsis</p>
-                <p className="text-xs text-ivory-dim leading-relaxed">{document.synopsis}</p>
-              </div>
-            )}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {activeTab === "doc" ? (
+          <div className="p-4">
+            <DocInspectorContent />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <FileText size={24} className="text-ivory-ghost opacity-30 mb-2" />
-            <p className="text-xs text-ivory-ghost">Select a document</p>
-          </div>
+          <EntityPanel />
         )}
       </div>
     </aside>
@@ -94,15 +146,12 @@ function Inspector() {
 }
 
 function MainArea() {
-  const { selectedDocumentId, activeView, rootDocuments, childrenMap } = useAppStore();
+  const { selectedDocumentId, rootDocuments, childrenMap } = useAppStore();
   const selectedDoc = [...rootDocuments, ...Object.values(childrenMap).flat()]
     .find((document) => document.id === selectedDocumentId);
 
-  if (!selectedDocumentId && activeView === "writing") {
+  if (!selectedDocumentId) {
     return <main className="flex-1 flex flex-col items-center justify-center bg-ink-void"><div className="text-center max-w-sm"><h2 className="text-2xl font-display text-gold mb-3 tracking-wide">Start writing</h2><p className="text-sm text-ivory-ghost leading-relaxed">Select a document from the sidebar, or create a new one to begin.</p></div></main>;
-  }
-  if (activeView === "worldbuilding") {
-    return <main className="flex-1 flex flex-col items-center justify-center bg-ink-void"><div className="text-center max-w-sm"><h2 className="text-2xl font-display text-gold mb-3 tracking-wide">Your world</h2><p className="text-sm text-ivory-ghost leading-relaxed">Select an entity type from the sidebar to explore your world.</p></div></main>;
   }
   if (selectedDoc?.node_type === "folder") return <main className="flex-1 flex flex-col items-center justify-center bg-ink-void"><Folder size={32} className="text-ivory-ghost opacity-20 mx-auto mb-3" /><p className="text-sm text-ivory font-display tracking-wide">{selectedDoc.title}</p><p className="text-xs text-ivory-ghost mt-1">Folder</p></main>;
   if (selectedDoc) return <main className="flex-1 flex flex-col bg-ink-void overflow-hidden"><DocumentEditor key={selectedDoc.id} documentId={selectedDoc.id} doc={selectedDoc} /></main>;

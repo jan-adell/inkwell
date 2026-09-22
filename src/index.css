@@ -150,3 +150,18 @@
 .page-size-unlimited {
   background-image: none;
 }
+/* Entity mention links */
+.entity-link {
+  color: #c9a84c;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: rgba(201, 168, 76, 0.5);
+  text-underline-offset: 2px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.1s;
+}
+
+.entity-link:hover {
+  background-color: rgba(201, 168, 76, 0.12);
+}

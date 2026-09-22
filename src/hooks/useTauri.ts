@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Document, Entity, EntityAsset, EntityType, InitResult, KnownProject, OpenProjectResult } from "../types/core";
+import type { Document, Entity, EntityAsset, EntityFolder, EntityType, FieldDefinition, FieldValue, InitResult, KnownProject, OpenProjectResult } from "../types/core";
 
 export async function invokeInitializeCore(): Promise<InitResult> { return invoke<InitResult>("initialize_core"); }
 export async function invokeDeleteProject(projectId: string): Promise<void> { return invoke("delete_project", { projectId }); }
@@ -17,7 +17,23 @@ export async function invokeUpdateDocument(id: string, req: { title?: string; sy
 
 export async function invokeListEntityTypes(projectId: string): Promise<EntityType[]> { return invoke<EntityType[]>("list_entity_types", { projectId }); }
 export async function invokeListEntitiesByType(projectId: string, entityTypeId: string): Promise<Entity[]> { return invoke<Entity[]>("list_entities_by_type", { projectId, entityTypeId }); }
-export async function invokeCreateEntity(projectId: string, req: { entity_type_id: string; name: string }): Promise<Entity> { return invoke<Entity>("create_entity", { projectId, req }); }
+export async function invokeCreateEntity(projectId: string, req: { entity_type_id: string; name: string; folder_id?: string | null }): Promise<Entity> { return invoke<Entity>("create_entity", { projectId, req }); }
+export async function invokeUpdateEntity(id: string, req: { name?: string; summary?: string; sort_order?: number; folder_id?: string | null }): Promise<Entity> { return invoke<Entity>("update_entity", { id, req }); }
+export async function invokeDeleteEntity(id: string): Promise<void> { return invoke("delete_entity", { id }); }
+export async function invokeListRootEntities(projectId: string): Promise<Entity[]> { return invoke<Entity[]>("list_root_entities", { projectId }); }
+export async function invokeListEntitiesByFolder(projectId: string, folderId: string): Promise<Entity[]> { return invoke<Entity[]>("list_entities_by_folder", { projectId, folderId }); }
+
+export async function invokeListEntityFolders(projectId: string): Promise<EntityFolder[]> { return invoke<EntityFolder[]>("list_entity_folders", { projectId }); }
+export async function invokeCreateEntityFolder(projectId: string, req: { name: string }): Promise<EntityFolder> { return invoke<EntityFolder>("create_entity_folder", { projectId, req }); }
+export async function invokeUpdateEntityFolder(id: string, req: { name?: string; sort_order?: number }): Promise<EntityFolder> { return invoke<EntityFolder>("update_entity_folder", { id, req }); }
+export async function invokeDeleteEntityFolder(id: string): Promise<void> { return invoke("delete_entity_folder", { id }); }
+
+export async function invokeListFieldDefinitions(entityTypeId: string): Promise<FieldDefinition[]> { return invoke<FieldDefinition[]>("list_field_definitions", { entityTypeId }); }
+export async function invokeCreateFieldDefinition(req: { entity_type_id: string; name: string; label: string; field_type: string; sort_order?: number }): Promise<FieldDefinition> { return invoke<FieldDefinition>("create_field_definition", { req }); }
+export async function invokeDeleteFieldDefinition(id: string): Promise<void> { return invoke("delete_field_definition", { id }); }
+
+export async function invokeSetFieldValue(req: { entity_id: string; field_def_id: string; value: { type: string; value: unknown } }): Promise<FieldValue> { return invoke<FieldValue>("set_field_value", { req }); }
+export async function invokeGetFieldValues(entityId: string): Promise<FieldValue[]> { return invoke<FieldValue[]>("get_field_values", { entityId }); }
 export async function invokeWriteDocumentContent(documentId: string, contentJson: string, contentText: string): Promise<Document> { return invoke<Document>("write_document_content", { documentId, contentJson, contentText }); }
 export async function invokeReadDocumentContent(documentId: string): Promise<string> { return invoke<string>("read_document_content", { documentId }); }
 export async function invokeWriteEntityNotes(entityId: string, notesJson: string, notesText: string): Promise<void> { return invoke("write_entity_notes", { entityId, notesJson, notesText }); }

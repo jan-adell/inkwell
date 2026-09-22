@@ -118,6 +118,37 @@ pub fn update(conn: &Connection, id: &str, req: &UpdateEntityTypeRequest) -> Res
     get(conn, id)
 }
 
+pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
+    let existing = list(conn, project_id)?;
+    if !existing.is_empty() {
+        return Ok(());
+    }
+
+    let defaults = [
+        ("Character", "Characters", "#8B6FE8"),
+        ("Location", "Locations", "#4EA86B"),
+        ("Item", "Items", "#E8883A"),
+        ("Event", "Events", "#4A9FD4"),
+        ("Organization", "Organizations", "#D44A7A"),
+    ];
+
+    for (i, (name, plural, color)) in defaults.iter().enumerate() {
+        create(
+            conn,
+            project_id,
+            &CreateEntityTypeRequest {
+                name: name.to_string(),
+                name_plural: Some(plural.to_string()),
+                icon: None,
+                color: Some(color.to_string()),
+                description: None,
+                sort_order: Some(i as i64),
+            },
+        )?;
+    }
+    Ok(())
+}
+
 /// Soft-delete. Refuses to delete system types.
 pub fn delete(conn: &Connection, id: &str) -> Result<()> {
     let current = get(conn, id)?;
@@ -255,6 +286,56 @@ mod tests {
 
         let fetched = get(&conn, &et.id).unwrap();
         assert!(fetched.deleted_at.is_some());
+    }
+
+    #[test]
+    fn seed_defaults_creates_five_types() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        seed_defaults(&conn, &pid).unwrap();
+        let types = list(&conn, &pid).unwrap();
+        assert_eq!(types.len(), 5);
+        let names: Vec<&str> = types.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"Character"));
+        assert!(names.contains(&"Location"));
+        assert!(names.contains(&"Item"));
+        assert!(names.contains(&"Event"));
+        assert!(names.contains(&"Organization"));
+    }
+
+    #[test]
+    fn seed_defaults_is_idempotent() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        seed_defaults(&conn, &pid).unwrap();
+        seed_defaults(&conn, &pid).unwrap();
+        let types = list(&conn, &pid).unwrap();
+        assert_eq!(types.len(), 5);
+    }
+
+    #[test]
+    fn seed_defaults_assigns_sort_order_in_order() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        seed_defaults(&conn, &pid).unwrap();
+        let types = list(&conn, &pid).unwrap();
+        for (i, t) in types.iter().enumerate() {
+            assert_eq!(t.sort_order, i as i64);
+        }
+    }
+
+    #[test]
+    fn seed_defaults_skips_when_types_already_exist() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        create(&conn, &pid, &CreateEntityTypeRequest {
+            name: "Custom".into(), name_plural: None, icon: None,
+            color: None, description: None, sort_order: None,
+        }).unwrap();
+        seed_defaults(&conn, &pid).unwrap();
+        let types = list(&conn, &pid).unwrap();
+        assert_eq!(types.len(), 1);
+        assert_eq!(types[0].name, "Custom");
     }
 
     #[test]

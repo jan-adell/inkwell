@@ -13,9 +13,10 @@ fn row_to_entity(row: &rusqlite::Row) -> rusqlite::Result<Entity> {
         cover_image: row.get(5)?,
         visibility: row.get(6)?,
         sort_order: row.get(7)?,
-        created_at: row.get(8)?,
-        updated_at: row.get(9)?,
-        deleted_at: row.get(10)?,
+        folder_id: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+        deleted_at: row.get(11)?,
     })
 }
 
@@ -55,8 +56,8 @@ pub fn create(conn: &Connection, project_id: &str, req: &CreateEntityRequest) ->
     conn.execute(
         "INSERT INTO entities
             (id, project_id, entity_type_id, name, summary,
-             visibility, sort_order, created_at, updated_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8)",
+             visibility, sort_order, folder_id, created_at, updated_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?9)",
         params![
             id,
             project_id,
@@ -65,6 +66,7 @@ pub fn create(conn: &Connection, project_id: &str, req: &CreateEntityRequest) ->
             req.summary,
             visibility,
             sort_order,
+            req.folder_id,
             now
         ],
     )?;
@@ -75,7 +77,7 @@ pub fn create(conn: &Connection, project_id: &str, req: &CreateEntityRequest) ->
 pub fn get(conn: &Connection, id: &str) -> Result<Entity> {
     conn.query_row(
         "SELECT id,project_id,entity_type_id,name,summary,cover_image,
-                visibility,sort_order,created_at,updated_at,deleted_at
+                visibility,sort_order,folder_id,created_at,updated_at,deleted_at
          FROM entities WHERE id=?1",
         params![id],
         row_to_entity,
@@ -91,7 +93,7 @@ pub fn get(conn: &Connection, id: &str) -> Result<Entity> {
 pub fn list(conn: &Connection, project_id: &str) -> Result<Vec<Entity>> {
     let mut stmt = conn.prepare(
         "SELECT id,project_id,entity_type_id,name,summary,cover_image,
-                visibility,sort_order,created_at,updated_at,deleted_at
+                visibility,sort_order,folder_id,created_at,updated_at,deleted_at
          FROM entities
          WHERE project_id=?1 AND deleted_at IS NULL
          ORDER BY sort_order ASC, name ASC",
@@ -107,12 +109,40 @@ pub fn list_by_type(
 ) -> Result<Vec<Entity>> {
     let mut stmt = conn.prepare(
         "SELECT id,project_id,entity_type_id,name,summary,cover_image,
-                visibility,sort_order,created_at,updated_at,deleted_at
+                visibility,sort_order,folder_id,created_at,updated_at,deleted_at
          FROM entities
          WHERE project_id=?1 AND entity_type_id=?2 AND deleted_at IS NULL
          ORDER BY sort_order ASC, name ASC",
     )?;
     let rows = stmt.query_map(params![project_id, entity_type_id], row_to_entity)?;
+    rows.map(|r| r.map_err(InkwellError::Database)).collect()
+}
+
+pub fn list_root_entities(conn: &Connection, project_id: &str) -> Result<Vec<Entity>> {
+    let mut stmt = conn.prepare(
+        "SELECT id,project_id,entity_type_id,name,summary,cover_image,
+                visibility,sort_order,folder_id,created_at,updated_at,deleted_at
+         FROM entities
+         WHERE project_id=?1 AND folder_id IS NULL AND deleted_at IS NULL
+         ORDER BY sort_order ASC, name ASC",
+    )?;
+    let rows = stmt.query_map(params![project_id], row_to_entity)?;
+    rows.map(|r| r.map_err(InkwellError::Database)).collect()
+}
+
+pub fn list_by_folder(
+    conn: &Connection,
+    project_id: &str,
+    folder_id: &str,
+) -> Result<Vec<Entity>> {
+    let mut stmt = conn.prepare(
+        "SELECT id,project_id,entity_type_id,name,summary,cover_image,
+                visibility,sort_order,folder_id,created_at,updated_at,deleted_at
+         FROM entities
+         WHERE project_id=?1 AND folder_id=?2 AND deleted_at IS NULL
+         ORDER BY sort_order ASC, name ASC",
+    )?;
+    let rows = stmt.query_map(params![project_id, folder_id], row_to_entity)?;
     rows.map(|r| r.map_err(InkwellError::Database)).collect()
 }
 
@@ -132,12 +162,16 @@ pub fn update(conn: &Connection, id: &str, req: &UpdateEntityRequest) -> Result<
         .or(current.cover_image.as_deref());
     let visibility = req.visibility.as_deref().unwrap_or(&current.visibility);
     let sort_order = req.sort_order.unwrap_or(current.sort_order);
+    let folder_id = match &req.folder_id {
+        Some(v) => v.as_deref(),
+        None => current.folder_id.as_deref(),
+    };
 
     conn.execute(
         "UPDATE entities
-         SET name=?1,summary=?2,cover_image=?3,visibility=?4,sort_order=?5,updated_at=?6
-         WHERE id=?7 AND deleted_at IS NULL",
-        params![name, summary, cover_image, visibility, sort_order, now, id],
+         SET name=?1,summary=?2,cover_image=?3,visibility=?4,sort_order=?5,folder_id=?6,updated_at=?7
+         WHERE id=?8 AND deleted_at IS NULL",
+        params![name, summary, cover_image, visibility, sort_order, folder_id, now, id],
     )?;
 
     get(conn, id)
@@ -212,22 +246,22 @@ mod tests {
         (pid, etid)
     }
 
+    fn make_entity(entity_type_id: &str, name: &str) -> CreateEntityRequest {
+        CreateEntityRequest {
+            entity_type_id: entity_type_id.into(),
+            name: name.into(),
+            summary: None,
+            visibility: None,
+            sort_order: None,
+            folder_id: None,
+        }
+    }
+
     #[test]
     fn create_and_get() {
         let conn = test_conn();
         let (pid, etid) = seed(&conn);
-        let e = create(
-            &conn,
-            &pid,
-            &CreateEntityRequest {
-                entity_type_id: etid.clone(),
-                name: "Kael".into(),
-                summary: None,
-                visibility: None,
-                sort_order: None,
-            },
-        )
-        .unwrap();
+        let e = create(&conn, &pid, &make_entity(&etid, "Kael")).unwrap();
         assert_eq!(e.name, "Kael");
         assert_eq!(e.visibility, "private");
         assert_eq!(get(&conn, &e.id).unwrap().id, e.id);
@@ -237,17 +271,7 @@ mod tests {
     fn invalid_entity_type_rejected() {
         let conn = test_conn();
         let (pid, _) = seed(&conn);
-        let result = create(
-            &conn,
-            &pid,
-            &CreateEntityRequest {
-                entity_type_id: "bad-type".into(),
-                name: "X".into(),
-                summary: None,
-                visibility: None,
-                sort_order: None,
-            },
-        );
+        let result = create(&conn, &pid, &make_entity("bad-type", "X"));
         assert!(matches!(result, Err(InkwellError::Validation(_))));
     }
 
@@ -261,30 +285,8 @@ mod tests {
              VALUES(?1,?2,'Lugar',0,0,'2026-01-01','2026-01-01')",
             params![etid2, pid],
         ).unwrap();
-        create(
-            &conn,
-            &pid,
-            &CreateEntityRequest {
-                entity_type_id: etid.clone(),
-                name: "Kael".into(),
-                summary: None,
-                visibility: None,
-                sort_order: None,
-            },
-        )
-        .unwrap();
-        create(
-            &conn,
-            &pid,
-            &CreateEntityRequest {
-                entity_type_id: etid2.clone(),
-                name: "Valthera".into(),
-                summary: None,
-                visibility: None,
-                sort_order: None,
-            },
-        )
-        .unwrap();
+        create(&conn, &pid, &make_entity(&etid, "Kael")).unwrap();
+        create(&conn, &pid, &make_entity(&etid2, "Valthera")).unwrap();
 
         let chars = list_by_type(&conn, &pid, &etid).unwrap();
         assert_eq!(chars.len(), 1);
@@ -295,20 +297,43 @@ mod tests {
     fn soft_delete() {
         let conn = test_conn();
         let (pid, etid) = seed(&conn);
-        let e = create(
+        let e = create(&conn, &pid, &make_entity(&etid, "Arven")).unwrap();
+        delete(&conn, &e.id).unwrap();
+        assert!(get(&conn, &e.id).unwrap().deleted_at.is_some());
+        assert!(list(&conn, &pid).unwrap().is_empty());
+    }
+
+    #[test]
+    fn list_root_entities_excludes_folder_members() {
+        let conn = test_conn();
+        let (pid, etid) = seed(&conn);
+        let fid = "01FOLDER0000000000000000001".to_string();
+        conn.execute(
+            "INSERT INTO entity_folders(id,project_id,name,sort_order,created_at)
+             VALUES(?1,?2,'Heroes',0,'2026-01-01')",
+            params![fid, pid],
+        ).unwrap();
+
+        let root = create(&conn, &pid, &make_entity(&etid, "Kael")).unwrap();
+        let in_folder = create(
             &conn,
             &pid,
             &CreateEntityRequest {
-                entity_type_id: etid,
+                entity_type_id: etid.clone(),
                 name: "Arven".into(),
                 summary: None,
                 visibility: None,
                 sort_order: None,
+                folder_id: Some(fid.clone()),
             },
-        )
-        .unwrap();
-        delete(&conn, &e.id).unwrap();
-        assert!(get(&conn, &e.id).unwrap().deleted_at.is_some());
-        assert!(list(&conn, &pid).unwrap().is_empty());
+        ).unwrap();
+
+        let roots = list_root_entities(&conn, &pid).unwrap();
+        assert_eq!(roots.len(), 1);
+        assert_eq!(roots[0].id, root.id);
+
+        let folder_members = list_by_folder(&conn, &pid, &fid).unwrap();
+        assert_eq!(folder_members.len(), 1);
+        assert_eq!(folder_members[0].id, in_folder.id);
     }
 }
