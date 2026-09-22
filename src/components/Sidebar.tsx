@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, FileText, Plus, ChevronRight, ChevronDown, Feather, Globe, Folder, Trash2 } from "lucide-react";
 import { useAppStore } from "../store/appStore";
+import { ConfirmDialog } from "./ConfirmDialog";
 import {
   invokeListRootDocuments,
   invokeListChildDocuments,
@@ -100,6 +101,7 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(doc.title);
   const [dragOver, setDragOver] = useState<'above' | 'into' | 'below' | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isFolder = doc.node_type === "folder";
@@ -124,8 +126,13 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
     setExpanded((v) => !v);
   }
 
-  async function handleDelete(event: React.MouseEvent) {
+  function handleDelete(event: React.MouseEvent) {
     event.stopPropagation();
+    setConfirming(true);
+  }
+
+  async function confirmDelete() {
+    setConfirming(false);
     await invokeDeleteDocument(doc.id);
     removeDocument(doc.id);
   }
@@ -294,6 +301,14 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
           <ListEndDropZone parentId={doc.id} index={children.length} depth={depth + 1} />
         </div>
       )}
+      {confirming && (
+        <ConfirmDialog
+          title={`Delete "${doc.title}"?`}
+          description="This document will be permanently deleted and cannot be recovered."
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
     </div>
   );
 }
@@ -315,6 +330,7 @@ function EntityRow({
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(entity.name);
   const [dragOver, setDragOver] = useState<'above' | 'below' | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSelected = selectedEntityId === entity.id;
@@ -407,8 +423,13 @@ function EntityRow({
     }
   }
 
-  async function handleDelete(event: React.MouseEvent) {
+  function handleDelete(event: React.MouseEvent) {
     event.stopPropagation();
+    setConfirming(true);
+  }
+
+  async function confirmDelete() {
+    setConfirming(false);
     await invokeDeleteEntity(entity.id);
     onDeleted(entity.id);
   }
@@ -484,6 +505,14 @@ function EntityRow({
           </>
         )}
       </div>
+      {confirming && (
+        <ConfirmDialog
+          title={`Delete "${entity.name}"?`}
+          description="This entity will be permanently deleted."
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
     </div>
   );
 }
@@ -543,6 +572,7 @@ function EntityFolderRow({
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(folder.name);
   const [dragOver, setDragOver] = useState<'above' | 'into' | 'below' | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const entities = entitiesByFolder[folder.id] ?? null;
@@ -677,8 +707,13 @@ function EntityFolderRow({
     setExpanded((v) => !v);
   }
 
-  async function handleDeleteFolder(event: React.MouseEvent) {
+  function handleDeleteFolder(event: React.MouseEvent) {
     event.stopPropagation();
+    setConfirming(true);
+  }
+
+  async function confirmDeleteFolder() {
+    setConfirming(false);
     await invokeDeleteEntityFolder(folder.id);
     setEntityFolders(entityFolders.filter((f) => f.id !== folder.id));
   }
@@ -779,6 +814,14 @@ function EntityFolderRow({
             />
           ))}
         </div>
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title={`Delete folder "${folder.name}"?`}
+          description="The folder will be deleted. Entities inside it will be permanently removed too."
+          onConfirm={confirmDeleteFolder}
+          onCancel={() => setConfirming(false)}
+        />
       )}
     </div>
   );
