@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use image::GenericImageView;
+use resvg::{tiny_skia, usvg};
 use tauri::State;
 
 use crate::db::entity_asset_repo;
@@ -11,14 +12,44 @@ use crate::state::AppState;
 const MAX_DIM: u32 = 200;
 const MAX_INPUT_BYTES: u64 = 20 * 1024 * 1024; // 20 MB — prevent OOM loading huge raws
 const MAX_OUTPUT_BYTES: usize = 20 * 1024; // 20 KB — per-image budget in the project folder
-const MAX_COPY_BYTES: u64 = 2 * 1024 * 1024; // 2 MB — for SVG / GIF copied as-is
 const JPEG_QUALITIES: &[u8] = &[85, 70, 55, 40, 25, 15, 5]; // try in order until output fits
 
+// These are reference thumbnails for the writer's own use, not artwork storage —
+// everything is rasterized and re-encoded, so only PNG (for transparency) keeps
+// its original format; SVG, GIF and everything else become JPEG.
 fn output_ext(ext: &str) -> &str {
     match ext {
-        "png" | "svg" | "gif" => ext,
+        "png" => "png",
         _ => "jpg",
     }
+}
+
+fn rasterize_svg(data: &[u8]) -> Result<image::DynamicImage> {
+    let tree = usvg::Tree::from_data(data, &usvg::Options::default())
+        .map_err(|e| InkwellError::Validation(format!("Invalid SVG: {e}")))?;
+
+    let size = tree.size();
+    let (w, h) = (size.width(), size.height());
+    if w <= 0.0 || h <= 0.0 {
+        return Err(InkwellError::Validation("SVG has zero size".into()));
+    }
+
+    // Rasterize directly at (at most) the target resolution instead of the SVG's
+    // native size, so a huge viewBox doesn't blow up memory before we resize.
+    let scale = (MAX_DIM as f32 / w.max(h)).min(1.0);
+    let px_w = ((w * scale).round() as u32).max(1);
+    let px_h = ((h * scale).round() as u32).max(1);
+
+    let mut pixmap = tiny_skia::Pixmap::new(px_w, px_h)
+        .ok_or_else(|| InkwellError::Validation("Invalid SVG dimensions".into()))?;
+    let transform = tiny_skia::Transform::from_scale(px_w as f32 / w, px_h as f32 / h);
+    resvg::render(&tree, transform, &mut pixmap.as_mut());
+
+    let png_bytes = pixmap
+        .encode_png()
+        .map_err(|e| InkwellError::Validation(format!("Failed to rasterize SVG: {e}")))?;
+    image::load_from_memory(&png_bytes)
+        .map_err(|e| InkwellError::Validation(format!("Failed to rasterize SVG: {e}")))
 }
 
 fn encode_jpeg_under_limit(img: &image::DynamicImage, max_bytes: usize) -> Result<Vec<u8>> {
@@ -66,29 +97,14 @@ fn resize_and_copy(src: &Path, dest: &Path, ext: &str) -> Result<()> {
         )));
     }
 
-    if matches!(ext, "svg" | "gif") {
-        if input_size > MAX_COPY_BYTES {
-            return Err(InkwellError::Validation(format!(
-                "File is too large ({}KB). Maximum allowed is {}KB.",
-                input_size / 1024,
-                MAX_COPY_BYTES / 1024
-            )));
-        }
-        std::fs::copy(src, dest)?;
-        return Ok(());
-    }
-
-    let img = match image::open(src) {
-        Ok(img) => img,
-        Err(_) => {
-            if input_size > MAX_OUTPUT_BYTES as u64 {
-                return Err(InkwellError::Validation(
-                    "Unsupported image format and file is too large to store directly.".into(),
-                ));
-            }
-            std::fs::copy(src, dest)?;
-            return Ok(());
-        }
+    let img = if ext == "svg" {
+        let data = std::fs::read(src)?;
+        rasterize_svg(&data)?
+    } else {
+        // GIF is decoded to its first frame here too — animation isn't kept,
+        // since these are static reference thumbnails.
+        image::open(src)
+            .map_err(|e| InkwellError::Validation(format!("Could not read image: {e}")))?
     };
 
     let (w, h) = img.dimensions();
@@ -168,11 +184,11 @@ pub async fn add_entity_asset(
     entity_asset_repo::insert(&conn, &entity_id, &relative_path, label.as_deref(), 0)
 }
 
+// Stored assets are always re-encoded to PNG or JPEG at upload time (see
+// output_ext), so those are the only two MIME types this ever needs to return.
 fn mime_for_ext(ext: &str) -> &'static str {
     match ext {
         "png" => "image/png",
-        "gif" => "image/gif",
-        "svg" => "image/svg+xml",
         _ => "image/jpeg",
     }
 }
@@ -344,24 +360,69 @@ mod tests {
     }
 
     #[test]
-    fn svg_is_copied_unchanged() {
+    fn svg_is_rasterized_to_jpeg_and_capped() {
         let dir = TempDir::new().unwrap();
         let src = dir.path().join("icon.svg");
-        std::fs::write(&src, b"<svg/>").unwrap();
-        let dest = dir.path().join("out.svg");
+        std::fs::write(
+            &src,
+            br##"<svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">
+                <rect width="500" height="500" fill="#c9384c"/>
+                <circle cx="250" cy="250" r="150" fill="#f2e6c9"/>
+            </svg>"##,
+        )
+        .unwrap();
+        let dest = dir.path().join("out.jpg");
         resize_and_copy(&src, &dest, "svg").unwrap();
-        assert_eq!(std::fs::read(&dest).unwrap(), b"<svg/>");
+
+        let bytes = std::fs::read(&dest).unwrap();
+        assert_eq!(&bytes[0..2], &[0xFF, 0xD8]); // JPEG magic bytes
+        assert!(bytes.len() <= MAX_OUTPUT_BYTES);
+
+        let img = image::open(&dest).unwrap();
+        assert!(img.width() <= MAX_DIM);
+        assert!(img.height() <= MAX_DIM);
     }
 
     #[test]
-    fn gif_is_copied_unchanged() {
+    fn invalid_svg_is_rejected() {
         let dir = TempDir::new().unwrap();
-        let src = dir.path().join("anim.gif");
-        let gif_bytes = b"GIF89a\x01\x00\x01\x00\x00\x00\x00\x3b";
-        std::fs::write(&src, gif_bytes).unwrap();
-        let dest = dir.path().join("out.gif");
-        resize_and_copy(&src, &dest, "gif").unwrap();
-        assert_eq!(std::fs::read(&dest).unwrap(), gif_bytes.to_vec());
+        let src = dir.path().join("broken.svg");
+        std::fs::write(&src, b"not actually svg content").unwrap();
+        let dest = dir.path().join("out.jpg");
+        let err = resize_and_copy(&src, &dest, "svg").unwrap_err();
+        assert!(matches!(err, InkwellError::Validation(_)));
+    }
+
+    #[test]
+    fn gif_is_rasterized_to_jpeg_and_capped() {
+        let dir = TempDir::new().unwrap();
+        let src = write_jpeg(dir.path(), "temp.jpg", 400, 300); // build a frame, then re-save as GIF
+        let frame = image::open(&src).unwrap();
+        let gif_path = dir.path().join("anim.gif");
+        frame
+            .save_with_format(&gif_path, image::ImageFormat::Gif)
+            .unwrap();
+
+        let dest = dir.path().join("out.jpg");
+        resize_and_copy(&gif_path, &dest, "gif").unwrap();
+
+        let bytes = std::fs::read(&dest).unwrap();
+        assert_eq!(&bytes[0..2], &[0xFF, 0xD8]);
+        assert!(bytes.len() <= MAX_OUTPUT_BYTES);
+
+        let img = image::open(&dest).unwrap();
+        assert!(img.width() <= MAX_DIM);
+        assert!(img.height() <= MAX_DIM);
+    }
+
+    #[test]
+    fn invalid_gif_is_rejected() {
+        let dir = TempDir::new().unwrap();
+        let src = dir.path().join("broken.gif");
+        std::fs::write(&src, b"not actually a gif").unwrap();
+        let dest = dir.path().join("out.jpg");
+        let err = resize_and_copy(&src, &dest, "gif").unwrap_err();
+        assert!(matches!(err, InkwellError::Validation(_)));
     }
 
     #[test]
@@ -369,8 +430,8 @@ mod tests {
         assert_eq!(output_ext("jpg"), "jpg");
         assert_eq!(output_ext("jpeg"), "jpg");
         assert_eq!(output_ext("png"), "png");
-        assert_eq!(output_ext("svg"), "svg");
-        assert_eq!(output_ext("gif"), "gif");
+        assert_eq!(output_ext("svg"), "jpg");
+        assert_eq!(output_ext("gif"), "jpg");
         assert_eq!(output_ext("webp"), "jpg");
         assert_eq!(output_ext("bmp"), "jpg");
         assert_eq!(output_ext("tiff"), "jpg");
@@ -385,28 +446,6 @@ mod tests {
         std::fs::write(&src, vec![0u8; (MAX_INPUT_BYTES + 1) as usize]).unwrap();
         let dest = dir.path().join("out.jpg");
         let err = resize_and_copy(&src, &dest, "jpg").unwrap_err();
-        assert!(matches!(err, InkwellError::Validation(_)));
-        assert!(err.to_string().contains("too large"));
-    }
-
-    #[test]
-    fn large_svg_is_rejected() {
-        let dir = TempDir::new().unwrap();
-        let src = dir.path().join("huge.svg");
-        std::fs::write(&src, vec![b'x'; (MAX_COPY_BYTES + 1) as usize]).unwrap();
-        let dest = dir.path().join("out.svg");
-        let err = resize_and_copy(&src, &dest, "svg").unwrap_err();
-        assert!(matches!(err, InkwellError::Validation(_)));
-        assert!(err.to_string().contains("too large"));
-    }
-
-    #[test]
-    fn large_gif_is_rejected() {
-        let dir = TempDir::new().unwrap();
-        let src = dir.path().join("huge.gif");
-        std::fs::write(&src, vec![b'G'; (MAX_COPY_BYTES + 1) as usize]).unwrap();
-        let dest = dir.path().join("out.gif");
-        let err = resize_and_copy(&src, &dest, "gif").unwrap_err();
         assert!(matches!(err, InkwellError::Validation(_)));
         assert!(err.to_string().contains("too large"));
     }

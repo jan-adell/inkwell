@@ -54,7 +54,14 @@ hex = "0.4"
 zip = "2"
 
 # Image processing — resize uploaded entity images before storing
-image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif"] }
+
+# SVG rasterization — entity images are reference thumbnails, not vector art;
+# SVGs are rendered to a raster once at upload time and stored as JPEG like
+# every other format. "text" is left out (no font loading/fontdb needed for
+# icon/logo-style SVGs); "raster-images" lets an SVG that embeds a PNG/JPEG
+# <image> still render correctly.
+resvg = { version = "0.45", default-features = false, features = ["raster-images"] }
 
 # Base64 encoding — for returning image data URLs over IPC
 base64 = "0.22"
