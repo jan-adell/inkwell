@@ -61,6 +61,22 @@ jobs:
         run: cargo test
         working-directory: src-tauri
 
+  # ── Windows: unit tests ──────────────────────────────────────────────────────
+  frontend-windows:
+    name: Frontend tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+
   # ── Windows: visual theme smoke test ────────────────────────────────────────
   visual-windows:
     name: Windows visual theme check
