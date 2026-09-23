@@ -19,6 +19,33 @@ const ADDABLE_FIELD_TYPES: { label: string; type: FieldType }[] = [
   { label: "Image", type: "image" },
 ];
 
+const SI_UNIT_GROUPS: { group: string; units: { symbol: string; name: string }[] }[] = [
+  { group: "Length", units: [{ symbol: "mm", name: "Millimetre" }, { symbol: "cm", name: "Centimetre" }, { symbol: "m", name: "Metre" }, { symbol: "km", name: "Kilometre" }] },
+  { group: "Mass", units: [{ symbol: "mg", name: "Milligram" }, { symbol: "g", name: "Gram" }, { symbol: "kg", name: "Kilogram" }, { symbol: "t", name: "Tonne" }] },
+  { group: "Time", units: [{ symbol: "ms", name: "Millisecond" }, { symbol: "s", name: "Second" }, { symbol: "min", name: "Minute" }, { symbol: "h", name: "Hour" }, { symbol: "d", name: "Day" }] },
+  { group: "Temperature", units: [{ symbol: "°C", name: "Celsius" }, { symbol: "K", name: "Kelvin" }] },
+  { group: "Area", units: [{ symbol: "cm²", name: "Square centimetre" }, { symbol: "m²", name: "Square metre" }, { symbol: "km²", name: "Square kilometre" }, { symbol: "ha", name: "Hectare" }] },
+  { group: "Volume", units: [{ symbol: "mL", name: "Millilitre" }, { symbol: "L", name: "Litre" }, { symbol: "m³", name: "Cubic metre" }] },
+  { group: "Speed", units: [{ symbol: "m/s", name: "Metres per second" }, { symbol: "km/h", name: "Kilometres per hour" }] },
+  { group: "Force", units: [{ symbol: "N", name: "Newton" }, { symbol: "kN", name: "Kilonewton" }] },
+  { group: "Energy", units: [{ symbol: "J", name: "Joule" }, { symbol: "kJ", name: "Kilojoule" }, { symbol: "kWh", name: "Kilowatt-hour" }, { symbol: "kcal", name: "Kilocalorie" }] },
+  { group: "Power", units: [{ symbol: "W", name: "Watt" }, { symbol: "kW", name: "Kilowatt" }, { symbol: "MW", name: "Megawatt" }] },
+  { group: "Pressure", units: [{ symbol: "Pa", name: "Pascal" }, { symbol: "kPa", name: "Kilopascal" }, { symbol: "bar", name: "Bar" }] },
+  { group: "Frequency", units: [{ symbol: "Hz", name: "Hertz" }, { symbol: "kHz", name: "Kilohertz" }, { symbol: "MHz", name: "Megahertz" }] },
+  { group: "Electric", units: [{ symbol: "A", name: "Ampere" }, { symbol: "V", name: "Volt" }, { symbol: "Ω", name: "Ohm" }, { symbol: "W", name: "Watt" }] },
+  { group: "Data", units: [{ symbol: "B", name: "Byte" }, { symbol: "KB", name: "Kilobyte" }, { symbol: "MB", name: "Megabyte" }, { symbol: "GB", name: "Gigabyte" }, { symbol: "TB", name: "Terabyte" }] },
+];
+
+function getNumberUnit(fieldDef: FieldDefinition): string {
+  if (fieldDef.field_type !== "number" || !fieldDef.options) return "";
+  try {
+    const parsed = JSON.parse(fieldDef.options) as { unit?: string };
+    return parsed.unit ?? "";
+  } catch {
+    return "";
+  }
+}
+
 function getTextValue(fv: FieldValue): string {
   if (fv.value_text !== null) return fv.value_text;
   if (fv.value_date !== null) return fv.value_date;
@@ -36,7 +63,7 @@ function fieldValuePayload(fieldType: FieldType, raw: string): { type: string; v
   }
 }
 
-function PropertyRow({
+export function PropertyRow({
   fieldDef,
   fieldValue,
   entity,
@@ -50,6 +77,7 @@ function PropertyRow({
   onSaved: (fv: FieldValue) => void;
 }) {
   const [draft, setDraft] = useState(fieldValue ? getTextValue(fieldValue) : "");
+  const unit = getNumberUnit(fieldDef);
 
   useEffect(() => {
     setDraft(fieldValue ? getTextValue(fieldValue) : "");
@@ -92,13 +120,16 @@ function PropertyRow({
             className="w-full bg-transparent text-ivory text-sm focus:outline-none resize-none"
           />
         ) : (
-          <input
-            type={fieldDef.field_type === "date" ? "date" : fieldDef.field_type === "number" ? "number" : "text"}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => void save()}
-            className="w-full bg-transparent text-ivory text-sm focus:outline-none"
-          />
+          <div className="flex items-baseline gap-1 min-w-0">
+            <input
+              type={fieldDef.field_type === "date" ? "date" : "text"}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => void save()}
+              className={`bg-transparent text-ivory text-sm focus:outline-none ${unit ? "w-20" : "min-w-0 w-full"}`}
+            />
+            {unit && <span className="text-xs text-ivory-ghost">{unit}</span>}
+          </div>
         )}
       </div>
       <button
@@ -122,6 +153,7 @@ function AddPropertyForm({
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [fieldType, setFieldType] = useState<FieldType>("text");
+  const [unit, setUnit] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
@@ -129,12 +161,14 @@ function AddPropertyForm({
   async function submit() {
     const trimmed = label.trim();
     if (!trimmed) { setOpen(false); return; }
+    const options = fieldType === "number" && unit ? JSON.stringify({ unit }) : undefined;
     try {
       const fd = await invokeCreateFieldDefinition({
         entity_type_id: entity.entity_type_id,
         name: trimmed.toLowerCase().replace(/\s+/g, "_"),
         label: trimmed,
         field_type: fieldType,
+        options,
       });
       onAdded(fd);
     } catch {
@@ -170,13 +204,34 @@ function AddPropertyForm({
         {ADDABLE_FIELD_TYPES.map((opt) => (
           <button
             key={opt.type}
-            onClick={() => setFieldType(opt.type)}
+            onClick={() => { setFieldType(opt.type); if (opt.type !== "number") setUnit(""); }}
             className={`text-xs px-2 py-0.5 rounded transition-colors ${fieldType === opt.type ? "bg-gold/30 text-gold" : "bg-ink-muted text-ivory-ghost hover:text-ivory"}`}
           >
             {opt.label}
           </button>
         ))}
       </div>
+      {fieldType === "number" && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-ivory-ghost">Unit</span>
+          <select
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            className="bg-ink-muted text-ivory text-xs px-1.5 py-0.5 rounded focus:outline-none"
+          >
+            <option value="">— none</option>
+            {SI_UNIT_GROUPS.map((group) => (
+              <optgroup key={group.group} label={group.group}>
+                {group.units.map((u) => (
+                  <option key={`${group.group}-${u.symbol}`} value={u.symbol}>
+                    {u.symbol} — {u.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="flex gap-2">
         <button onClick={() => void submit()} className="flex-1 text-xs bg-gold/20 text-gold rounded py-0.5 hover:bg-gold/30">Add</button>
         <button onClick={() => setOpen(false)} className="flex-1 text-xs text-ivory-ghost rounded py-0.5 hover:bg-ink-muted">Cancel</button>

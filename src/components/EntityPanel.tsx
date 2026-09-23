@@ -12,6 +12,16 @@ function getTextValue(fv: FieldValue): string {
   return "";
 }
 
+function getNumberUnit(fd: FieldDefinition): string {
+  if (fd.field_type !== "number" || !fd.options) return "";
+  try {
+    const parsed = JSON.parse(fd.options) as { unit?: string };
+    return parsed.unit ?? "";
+  } catch {
+    return "";
+  }
+}
+
 function allEntitiesFromStore(): Entity[] {
   const state = useAppStore.getState();
   return [
@@ -151,10 +161,11 @@ export function EntityPanel() {
                     if (!fv) return null;
                     const val = getTextValue(fv);
                     if (!val) return null;
+                    const unit = getNumberUnit(fd);
                     return (
                       <div key={fd.id} className="flex gap-2 text-xs">
                         <span className="text-ivory-ghost w-24 flex-shrink-0 truncate">{fd.label}</span>
-                        <span className="text-ivory-dim truncate">{val}</span>
+                        <span className="text-ivory-dim truncate">{val}{unit && <span className="text-ivory-ghost ml-0.5">{unit}</span>}</span>
                       </div>
                     );
                   })}
