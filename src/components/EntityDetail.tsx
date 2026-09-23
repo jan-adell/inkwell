@@ -14,6 +14,7 @@ import type { Entity, EntityType, FieldDefinition, FieldValue, FieldType } from 
 const ADDABLE_FIELD_TYPES: { label: string; type: FieldType }[] = [
   { label: "Short text", type: "text" },
   { label: "Long text", type: "textarea" },
+  { label: "Number", type: "number" },
   { label: "Date", type: "date" },
   { label: "Image", type: "image" },
 ];
@@ -92,7 +93,7 @@ function PropertyRow({
           />
         ) : (
           <input
-            type={fieldDef.field_type === "date" ? "date" : "text"}
+            type={fieldDef.field_type === "date" ? "date" : fieldDef.field_type === "number" ? "number" : "text"}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={() => void save()}
