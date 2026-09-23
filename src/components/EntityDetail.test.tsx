@@ -1,8 +1,9 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { fireEvent } from "@testing-library/react";
 import { PropertyRow } from "./EntityDetail";
-import type { Entity, FieldDefinition, FieldValue, FieldType } from "../types/core";
+import type { Entity, EntityAsset, FieldDefinition, FieldValue, FieldType } from "../types/core";
 
 vi.mock("../hooks/useTauri", () => ({
   invokeSetFieldValue: vi.fn(),
@@ -11,15 +12,33 @@ vi.mock("../hooks/useTauri", () => ({
   invokeListFieldDefinitions: vi.fn(),
   invokeCreateFieldDefinition: vi.fn(),
   invokeUpdateEntity: vi.fn(),
+  invokeAddEntityAsset: vi.fn(),
+  invokeDeleteEntityAsset: vi.fn(),
+  invokeListEntityAssets: vi.fn(),
 }));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({
+  convertFileSrc: (path: string) => `asset://localhost${path}`,
+}));
+
 
 import {
   invokeSetFieldValue,
   invokeDeleteFieldDefinition,
+  invokeAddEntityAsset,
+  invokeDeleteEntityAsset,
 } from "../hooks/useTauri";
+import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
 
 const mockSetFieldValue = invokeSetFieldValue as ReturnType<typeof vi.fn>;
 const mockDeleteFieldDefinition = invokeDeleteFieldDefinition as ReturnType<typeof vi.fn>;
+const mockAddEntityAsset = invokeAddEntityAsset as ReturnType<typeof vi.fn>;
+const mockDeleteEntityAsset = invokeDeleteEntityAsset as ReturnType<typeof vi.fn>;
+const mockDialogOpen = dialogOpen as ReturnType<typeof vi.fn>;
 
 const ENTITY: Entity = {
   id: "e1",
@@ -36,7 +55,7 @@ const ENTITY: Entity = {
   deleted_at: null,
 };
 
-function makeFieldDef(field_type: FieldType): FieldDefinition {
+function makeFieldDef(field_type: FieldType, overrides: Partial<FieldDefinition> = {}): FieldDefinition {
   return {
     id: "fd1",
     entity_type_id: "et1",
@@ -50,6 +69,7 @@ function makeFieldDef(field_type: FieldType): FieldDefinition {
     sort_order: 0,
     created_at: "2026-01-01",
     deleted_at: null,
+    ...overrides,
   };
 }
 
@@ -68,9 +88,27 @@ function makeFieldValue(overrides: Partial<FieldValue>): FieldValue {
   };
 }
 
-function setup(field_type: FieldType, fieldValue?: FieldValue) {
+function makeAsset(overrides: Partial<EntityAsset> = {}): EntityAsset {
+  return {
+    id: "asset1",
+    entity_id: "e1",
+    relative_path: "assets/entities/e1/ULID.jpg",
+    label: "fd1",
+    sort_order: 0,
+    created_at: "2026-01-01",
+    ...overrides,
+  };
+}
+
+function setup(
+  field_type: FieldType,
+  fieldValue?: FieldValue,
+  asset?: EntityAsset,
+  projectPath = "/projects/test.inkwell",
+) {
   const onDeleted = vi.fn();
   const onSaved = vi.fn();
+  const onAssetChanged = vi.fn();
   const user = userEvent.setup();
   mockSetFieldValue.mockResolvedValue(makeFieldValue({}));
   render(
@@ -80,9 +118,12 @@ function setup(field_type: FieldType, fieldValue?: FieldValue) {
       entity={ENTITY}
       onDeleted={onDeleted}
       onSaved={onSaved}
+      asset={asset}
+      projectPath={projectPath}
+      onAssetChanged={onAssetChanged}
     />
   );
-  return { user, onDeleted, onSaved };
+  return { user, onDeleted, onSaved, onAssetChanged };
 }
 
 describe("PropertyRow", () => {
@@ -164,6 +205,9 @@ describe("PropertyRow", () => {
           entity={ENTITY}
           onDeleted={vi.fn()}
           onSaved={vi.fn()}
+          asset={undefined}
+          projectPath=""
+          onAssetChanged={vi.fn()}
         />
       );
       expect(screen.getByText("kg")).toBeInTheDocument();
@@ -220,6 +264,69 @@ describe("PropertyRow", () => {
           field_def_id: "fd1",
           value: { type: "Text", value: "Long text" },
         });
+      });
+    });
+  });
+
+  describe("image field", () => {
+    it("shows Choose image button when no asset", () => {
+      setup("image");
+      expect(screen.getByRole("button", { name: /choose image/i })).toBeInTheDocument();
+    });
+
+    it("shows img element when asset is provided", async () => {
+      setup("image", undefined, makeAsset());
+      await waitFor(() => {
+        expect(screen.getByRole("img")).toBeInTheDocument();
+      });
+    });
+
+    it("uploads image when Choose image is clicked", async () => {
+      const { user, onAssetChanged } = setup("image");
+      mockDialogOpen.mockResolvedValue("/home/user/portrait.jpg");
+      mockAddEntityAsset.mockResolvedValue(makeAsset());
+      await user.click(screen.getByRole("button", { name: /choose image/i }));
+      await waitFor(() => {
+        expect(mockAddEntityAsset).toHaveBeenCalledWith("e1", "/home/user/portrait.jpg", "fd1");
+        expect(onAssetChanged).toHaveBeenCalled();
+      });
+    });
+
+    it("does nothing when file dialog is cancelled", async () => {
+      const { user, onAssetChanged } = setup("image");
+      mockDialogOpen.mockResolvedValue(null);
+      await user.click(screen.getByRole("button", { name: /choose image/i }));
+      await waitFor(() => {
+        expect(mockAddEntityAsset).not.toHaveBeenCalled();
+        expect(onAssetChanged).not.toHaveBeenCalled();
+      });
+    });
+
+    it("deletes old asset before uploading when replacing", async () => {
+      const existing = makeAsset();
+      const { user, onAssetChanged } = setup("image", undefined, existing);
+      mockDialogOpen.mockResolvedValue("/home/user/new.jpg");
+      mockDeleteEntityAsset.mockResolvedValue(undefined);
+      mockAddEntityAsset.mockResolvedValue(makeAsset({ id: "asset2" }));
+      await waitFor(() => screen.getByRole("img"));
+      const replaceBtn = screen.getByTitle("Replace image");
+      await user.click(replaceBtn);
+      await waitFor(() => {
+        expect(mockDeleteEntityAsset).toHaveBeenCalledWith("asset1");
+        expect(mockAddEntityAsset).toHaveBeenCalledWith("e1", "/home/user/new.jpg", "fd1");
+        expect(onAssetChanged).toHaveBeenCalled();
+      });
+    });
+
+    it("removes asset when remove button is clicked", async () => {
+      const { user, onAssetChanged } = setup("image", undefined, makeAsset());
+      mockDeleteEntityAsset.mockResolvedValue(undefined);
+      await waitFor(() => screen.getByRole("img"));
+      const removeBtn = screen.getByTitle("Remove image");
+      await user.click(removeBtn);
+      await waitFor(() => {
+        expect(mockDeleteEntityAsset).toHaveBeenCalledWith("asset1");
+        expect(onAssetChanged).toHaveBeenCalled();
       });
     });
   });

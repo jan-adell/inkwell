@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { useAppStore } from "../store/appStore";
 import {
   invokeGetFieldValues,
@@ -8,8 +10,11 @@ import {
   invokeDeleteFieldDefinition,
   invokeSetFieldValue,
   invokeUpdateEntity,
+  invokeAddEntityAsset,
+  invokeDeleteEntityAsset,
+  invokeListEntityAssets,
 } from "../hooks/useTauri";
-import type { Entity, EntityType, FieldDefinition, FieldValue, FieldType } from "../types/core";
+import type { Entity, EntityAsset, EntityType, FieldDefinition, FieldValue, FieldType } from "../types/core";
 
 const ADDABLE_FIELD_TYPES: { label: string; type: FieldType }[] = [
   { label: "Short text", type: "text" },
@@ -63,18 +68,91 @@ function fieldValuePayload(fieldType: FieldType, raw: string): { type: string; v
   }
 }
 
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif", "svg"];
+
+function ImageField({
+  entity,
+  fieldDef,
+  asset,
+  projectPath,
+  onAssetChanged,
+}: {
+  entity: Entity;
+  fieldDef: FieldDefinition;
+  asset: EntityAsset | undefined;
+  projectPath: string;
+  onAssetChanged: () => void;
+}) {
+  const imageUrl = asset && projectPath
+    ? convertFileSrc(`${projectPath}/${asset.relative_path}`)
+    : null;
+
+  async function pick() {
+    const selected = await open({ multiple: false, filters: [{ name: "Image", extensions: IMAGE_EXTENSIONS }] });
+    if (typeof selected !== "string") return;
+    if (asset) await invokeDeleteEntityAsset(asset.id);
+    await invokeAddEntityAsset(entity.id, selected, fieldDef.id);
+    onAssetChanged();
+  }
+
+  async function remove() {
+    if (!asset) return;
+    await invokeDeleteEntityAsset(asset.id);
+    onAssetChanged();
+  }
+
+  if (imageUrl) {
+    return (
+      <div className="relative group/img w-fit">
+        <img src={imageUrl} alt={fieldDef.label} className="h-24 object-cover rounded" />
+        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity">
+          <button
+            onClick={() => void pick()}
+            title="Replace image"
+            className="p-0.5 rounded bg-ink-deep/80 text-ivory-ghost hover:text-ivory transition-colors"
+          >
+            <Upload size={10} />
+          </button>
+          <button
+            onClick={() => void remove()}
+            title="Remove image"
+            className="p-0.5 rounded bg-ink-deep/80 text-ivory-ghost hover:text-crimson transition-colors"
+          >
+            <Trash2 size={10} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => void pick()}
+      className="text-xs text-ivory-ghost hover:text-ivory transition-colors"
+    >
+      Choose image…
+    </button>
+  );
+}
+
 export function PropertyRow({
   fieldDef,
   fieldValue,
   entity,
+  asset,
+  projectPath,
   onDeleted,
   onSaved,
+  onAssetChanged,
 }: {
   fieldDef: FieldDefinition;
   fieldValue: FieldValue | undefined;
   entity: Entity;
+  asset?: EntityAsset;
+  projectPath: string;
   onDeleted: (id: string) => void;
   onSaved: (fv: FieldValue) => void;
+  onAssetChanged: () => void;
 }) {
   const [draft, setDraft] = useState(fieldValue ? getTextValue(fieldValue) : "");
   const unit = getNumberUnit(fieldDef);
@@ -110,7 +188,13 @@ export function PropertyRow({
       <span className="text-xs text-ivory-ghost pt-1.5 truncate">{fieldDef.label}</span>
       <div className="min-w-0">
         {fieldDef.field_type === "image" ? (
-          <span className="text-xs text-ivory-ghost italic">coming soon</span>
+          <ImageField
+            entity={entity}
+            fieldDef={fieldDef}
+            asset={asset}
+            projectPath={projectPath}
+            onAssetChanged={onAssetChanged}
+          />
         ) : fieldDef.field_type === "textarea" ? (
           <textarea
             value={draft}
@@ -264,9 +348,10 @@ function updateEntityInStore(updated: Entity) {
 }
 
 export function EntityDetail({ entityId }: { entityId: string }) {
-  const { entityTypes, fieldDefinitionsByType, setFieldDefinitionsForType } = useAppStore();
+  const { entityTypes, fieldDefinitionsByType, setFieldDefinitionsForType, projectPath } = useAppStore();
   const [entity, setEntity] = useState<Entity | null>(() => findEntityInStore(entityId) ?? null);
   const [fieldValues, setFieldValues] = useState<Map<string, FieldValue>>(new Map());
+  const [assets, setAssets] = useState<EntityAsset[]>([]);
   const [nameDraft, setNameDraft] = useState(entity?.name ?? "");
   const [summaryDraft, setSummaryDraft] = useState(entity?.summary ?? "");
 
@@ -304,6 +389,14 @@ export function EntityDetail({ entityId }: { entityId: string }) {
         setFieldValues(m);
       })
       .catch(console.error);
+  }, [entityId]);
+
+  function loadAssets() {
+    invokeListEntityAssets(entityId).then(setAssets).catch(() => {});
+  }
+
+  useEffect(() => {
+    loadAssets();
   }, [entityId]);
 
   async function saveName() {
@@ -378,6 +471,8 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                 fieldDef={fd}
                 fieldValue={fieldValues.get(fd.id)}
                 entity={entity}
+                asset={assets.find((a) => a.label === fd.id)}
+                projectPath={projectPath ?? ""}
                 onDeleted={(id) => {
                   const current = fieldDefinitionsByType[entity.entity_type_id] ?? [];
                   setFieldDefinitionsForType(entity.entity_type_id, current.filter((f) => f.id !== id));
@@ -385,6 +480,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                 onSaved={(fv) => {
                   setFieldValues((prev) => new Map(prev).set(fv.field_def_id, fv));
                 }}
+                onAssetChanged={loadAssets}
               />
             ))}
           </>
