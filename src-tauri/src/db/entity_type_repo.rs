@@ -328,10 +328,19 @@ mod tests {
     fn seed_defaults_skips_when_types_already_exist() {
         let conn = test_conn();
         let pid = seed_project(&conn);
-        create(&conn, &pid, &CreateEntityTypeRequest {
-            name: "Custom".into(), name_plural: None, icon: None,
-            color: None, description: None, sort_order: None,
-        }).unwrap();
+        create(
+            &conn,
+            &pid,
+            &CreateEntityTypeRequest {
+                name: "Custom".into(),
+                name_plural: None,
+                icon: None,
+                color: None,
+                description: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
         seed_defaults(&conn, &pid).unwrap();
         let types = list(&conn, &pid).unwrap();
         assert_eq!(types.len(), 1);
