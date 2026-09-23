@@ -144,7 +144,7 @@ function MainArea() {
   if (activeView === "worldbuilding") {
     if (selectedEntityId) {
       return (
-        <main className="flex-1 overflow-y-auto bg-ink-void">
+        <main className="flex-1 flex flex-col bg-ink-void">
           <EntityDetail key={selectedEntityId} entityId={selectedEntityId} />
         </main>
       );
