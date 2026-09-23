@@ -9,6 +9,10 @@ use crate::models::entity_asset::EntityAsset;
 use crate::state::AppState;
 
 const MAX_DIM: u32 = 1200;
+const MAX_INPUT_BYTES: u64 = 20 * 1024 * 1024; // 20 MB — prevent OOM loading huge raws
+const MAX_OUTPUT_BYTES: usize = 512 * 1024; // 512 KB — per-image budget in the project folder
+const MAX_COPY_BYTES: u64 = 2 * 1024 * 1024; // 2 MB — for SVG / GIF copied as-is
+const JPEG_QUALITIES: &[u8] = &[85, 70, 55, 40]; // try in order until output fits
 
 fn output_ext(ext: &str) -> &str {
     match ext {
@@ -17,8 +21,59 @@ fn output_ext(ext: &str) -> &str {
     }
 }
 
+fn encode_jpeg_under_limit(img: &image::DynamicImage, max_bytes: usize) -> Result<Vec<u8>> {
+    for &quality in JPEG_QUALITIES {
+        let mut buf = Vec::new();
+        {
+            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(
+                std::io::Cursor::new(&mut buf),
+                quality,
+            );
+            img.write_with_encoder(encoder)
+                .map_err(|e| InkwellError::Validation(e.to_string()))?;
+        }
+        if buf.len() <= max_bytes {
+            return Ok(buf);
+        }
+    }
+    Err(InkwellError::Validation(format!(
+        "Image could not be reduced to under {}KB even at minimum quality. Try a smaller image.",
+        max_bytes / 1024
+    )))
+}
+
+fn encode_png_checked(img: &image::DynamicImage, max_bytes: usize) -> Result<Vec<u8>> {
+    let mut buf = Vec::new();
+    img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+        .map_err(|e| InkwellError::Validation(e.to_string()))?;
+    if buf.len() > max_bytes {
+        return Err(InkwellError::Validation(format!(
+            "PNG is still too large after resizing ({}KB, limit {}KB). Save as JPEG to reduce size.",
+            buf.len() / 1024,
+            max_bytes / 1024
+        )));
+    }
+    Ok(buf)
+}
+
 fn resize_and_copy(src: &Path, dest: &Path, ext: &str) -> Result<()> {
+    let input_size = src.metadata().map_err(InkwellError::Filesystem)?.len();
+    if input_size > MAX_INPUT_BYTES {
+        return Err(InkwellError::Validation(format!(
+            "Image file is too large ({}MB). Maximum allowed is {}MB.",
+            input_size / 1_048_576,
+            MAX_INPUT_BYTES / 1_048_576
+        )));
+    }
+
     if matches!(ext, "svg" | "gif") {
+        if input_size > MAX_COPY_BYTES {
+            return Err(InkwellError::Validation(format!(
+                "File is too large ({}KB). Maximum allowed is {}KB.",
+                input_size / 1024,
+                MAX_COPY_BYTES / 1024
+            )));
+        }
         std::fs::copy(src, dest)?;
         return Ok(());
     }
@@ -26,6 +81,11 @@ fn resize_and_copy(src: &Path, dest: &Path, ext: &str) -> Result<()> {
     let img = match image::open(src) {
         Ok(img) => img,
         Err(_) => {
+            if input_size > MAX_OUTPUT_BYTES as u64 {
+                return Err(InkwellError::Validation(
+                    "Unsupported image format and file is too large to store directly.".into(),
+                ));
+            }
             std::fs::copy(src, dest)?;
             return Ok(());
         }
@@ -38,17 +98,13 @@ fn resize_and_copy(src: &Path, dest: &Path, ext: &str) -> Result<()> {
         img
     };
 
-    if ext == "png" {
-        img.save_with_format(dest, image::ImageFormat::Png)
-            .map_err(|e| InkwellError::Validation(e.to_string()))?;
+    let bytes = if ext == "png" {
+        encode_png_checked(&img, MAX_OUTPUT_BYTES)?
     } else {
-        use image::codecs::jpeg::JpegEncoder;
-        let file = std::fs::File::create(dest)?;
-        let encoder = JpegEncoder::new_with_quality(std::io::BufWriter::new(file), 85);
-        img.write_with_encoder(encoder)
-            .map_err(|e| InkwellError::Validation(e.to_string()))?;
-    }
+        encode_jpeg_under_limit(&img, MAX_OUTPUT_BYTES)?
+    };
 
+    std::fs::write(dest, bytes)?;
     Ok(())
 }
 
@@ -174,6 +230,8 @@ mod tests {
         path
     }
 
+    // ── dimension limits ─────────────────────────────────────────────────────
+
     #[test]
     fn small_jpeg_is_not_resized() {
         let dir = TempDir::new().unwrap();
@@ -208,16 +266,6 @@ mod tests {
     }
 
     #[test]
-    fn png_is_saved_as_png() {
-        let dir = TempDir::new().unwrap();
-        let src = write_png(dir.path(), "icon.png", 100, 100);
-        let dest = dir.path().join("out.png");
-        resize_and_copy(&src, &dest, "png").unwrap();
-        let bytes = std::fs::read(&dest).unwrap();
-        assert_eq!(&bytes[0..4], b"\x89PNG");
-    }
-
-    #[test]
     fn large_png_is_resized() {
         let dir = TempDir::new().unwrap();
         let src = write_png(dir.path(), "big.png", 3000, 2000);
@@ -225,6 +273,18 @@ mod tests {
         resize_and_copy(&src, &dest, "png").unwrap();
         let img = image::open(&dest).unwrap();
         assert_eq!(img.width(), MAX_DIM);
+    }
+
+    // ── format preservation ──────────────────────────────────────────────────
+
+    #[test]
+    fn png_is_saved_as_png() {
+        let dir = TempDir::new().unwrap();
+        let src = write_png(dir.path(), "icon.png", 100, 100);
+        let dest = dir.path().join("out.png");
+        resize_and_copy(&src, &dest, "png").unwrap();
+        let bytes = std::fs::read(&dest).unwrap();
+        assert_eq!(&bytes[0..4], b"\x89PNG");
     }
 
     #[test]
@@ -258,5 +318,89 @@ mod tests {
         assert_eq!(output_ext("webp"), "jpg");
         assert_eq!(output_ext("bmp"), "jpg");
         assert_eq!(output_ext("tiff"), "jpg");
+    }
+
+    // ── input size guard ─────────────────────────────────────────────────────
+
+    #[test]
+    fn input_too_large_is_rejected() {
+        let dir = TempDir::new().unwrap();
+        let src = dir.path().join("huge.jpg");
+        std::fs::write(&src, vec![0u8; (MAX_INPUT_BYTES + 1) as usize]).unwrap();
+        let dest = dir.path().join("out.jpg");
+        let err = resize_and_copy(&src, &dest, "jpg").unwrap_err();
+        assert!(matches!(err, InkwellError::Validation(_)));
+        assert!(err.to_string().contains("too large"));
+    }
+
+    #[test]
+    fn large_svg_is_rejected() {
+        let dir = TempDir::new().unwrap();
+        let src = dir.path().join("huge.svg");
+        std::fs::write(&src, vec![b'x'; (MAX_COPY_BYTES + 1) as usize]).unwrap();
+        let dest = dir.path().join("out.svg");
+        let err = resize_and_copy(&src, &dest, "svg").unwrap_err();
+        assert!(matches!(err, InkwellError::Validation(_)));
+        assert!(err.to_string().contains("too large"));
+    }
+
+    #[test]
+    fn large_gif_is_rejected() {
+        let dir = TempDir::new().unwrap();
+        let src = dir.path().join("huge.gif");
+        std::fs::write(&src, vec![b'G'; (MAX_COPY_BYTES + 1) as usize]).unwrap();
+        let dest = dir.path().join("out.gif");
+        let err = resize_and_copy(&src, &dest, "gif").unwrap_err();
+        assert!(matches!(err, InkwellError::Validation(_)));
+        assert!(err.to_string().contains("too large"));
+    }
+
+    // ── output size enforcement ───────────────────────────────────────────────
+
+    #[test]
+    fn jpeg_output_is_within_size_limit() {
+        let dir = TempDir::new().unwrap();
+        let src = write_jpeg(dir.path(), "photo.jpg", 800, 600);
+        let dest = dir.path().join("out.jpg");
+        resize_and_copy(&src, &dest, "jpg").unwrap();
+        let size = std::fs::metadata(&dest).unwrap().len() as usize;
+        assert!(size <= MAX_OUTPUT_BYTES, "output was {size} bytes");
+    }
+
+    #[test]
+    fn encode_jpeg_fails_when_output_cannot_fit() {
+        let dir = TempDir::new().unwrap();
+        let src = write_jpeg(dir.path(), "test.jpg", 100, 100);
+        let img = image::open(&src).unwrap();
+        let err = encode_jpeg_under_limit(&img, 1).unwrap_err();
+        assert!(matches!(err, InkwellError::Validation(_)));
+    }
+
+    #[test]
+    fn encode_jpeg_succeeds_within_normal_limit() {
+        let dir = TempDir::new().unwrap();
+        let src = write_jpeg(dir.path(), "test.jpg", 400, 300);
+        let img = image::open(&src).unwrap();
+        let bytes = encode_jpeg_under_limit(&img, MAX_OUTPUT_BYTES).unwrap();
+        assert!(bytes.len() <= MAX_OUTPUT_BYTES);
+    }
+
+    #[test]
+    fn encode_png_over_limit_errors() {
+        let dir = TempDir::new().unwrap();
+        let src = write_png(dir.path(), "test.png", 100, 100);
+        let img = image::open(&src).unwrap();
+        let err = encode_png_checked(&img, 1).unwrap_err();
+        assert!(matches!(err, InkwellError::Validation(_)));
+        assert!(err.to_string().contains("PNG"));
+    }
+
+    #[test]
+    fn encode_png_within_limit_succeeds() {
+        let dir = TempDir::new().unwrap();
+        let src = write_png(dir.path(), "test.png", 100, 100);
+        let img = image::open(&src).unwrap();
+        let bytes = encode_png_checked(&img, MAX_OUTPUT_BYTES).unwrap();
+        assert!(bytes.len() <= MAX_OUTPUT_BYTES);
     }
 }
