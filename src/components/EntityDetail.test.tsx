@@ -13,6 +13,7 @@ vi.mock("../hooks/useTauri", () => ({
   invokeCreateFieldDefinition: vi.fn(),
   invokeUpdateEntity: vi.fn(),
   invokeAddEntityAsset: vi.fn(),
+  invokeReadEntityAsset: vi.fn(),
   invokeDeleteEntityAsset: vi.fn(),
   invokeListEntityAssets: vi.fn(),
 }));
@@ -30,6 +31,7 @@ import {
   invokeSetFieldValue,
   invokeDeleteFieldDefinition,
   invokeAddEntityAsset,
+  invokeReadEntityAsset,
   invokeDeleteEntityAsset,
 } from "../hooks/useTauri";
 import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
@@ -37,6 +39,7 @@ import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
 const mockSetFieldValue = invokeSetFieldValue as ReturnType<typeof vi.fn>;
 const mockDeleteFieldDefinition = invokeDeleteFieldDefinition as ReturnType<typeof vi.fn>;
 const mockAddEntityAsset = invokeAddEntityAsset as ReturnType<typeof vi.fn>;
+const mockReadEntityAsset = invokeReadEntityAsset as ReturnType<typeof vi.fn>;
 const mockDeleteEntityAsset = invokeDeleteEntityAsset as ReturnType<typeof vi.fn>;
 const mockDialogOpen = dialogOpen as ReturnType<typeof vi.fn>;
 
@@ -100,17 +103,13 @@ function makeAsset(overrides: Partial<EntityAsset> = {}): EntityAsset {
   };
 }
 
-function setup(
-  field_type: FieldType,
-  fieldValue?: FieldValue,
-  asset?: EntityAsset,
-  projectPath = "/projects/test.inkwell",
-) {
+function setup(field_type: FieldType, fieldValue?: FieldValue, asset?: EntityAsset) {
   const onDeleted = vi.fn();
   const onSaved = vi.fn();
   const onAssetChanged = vi.fn();
   const user = userEvent.setup();
   mockSetFieldValue.mockResolvedValue(makeFieldValue({}));
+  mockReadEntityAsset.mockResolvedValue("data:image/jpeg;base64,/9j/fake");
   render(
     <PropertyRow
       fieldDef={makeFieldDef(field_type)}
@@ -119,7 +118,6 @@ function setup(
       onDeleted={onDeleted}
       onSaved={onSaved}
       asset={asset}
-      projectPath={projectPath}
       onAssetChanged={onAssetChanged}
     />
   );
@@ -206,7 +204,6 @@ describe("PropertyRow", () => {
           onDeleted={vi.fn()}
           onSaved={vi.fn()}
           asset={undefined}
-          projectPath=""
           onAssetChanged={vi.fn()}
         />
       );

@@ -39,5 +39,6 @@ export async function invokeReadDocumentContent(documentId: string): Promise<str
 export async function invokeWriteEntityNotes(entityId: string, notesJson: string, notesText: string): Promise<void> { return invoke("write_entity_notes", { entityId, notesJson, notesText }); }
 export async function invokeReadEntityNotes(entityId: string): Promise<string | null> { return invoke<string | null>("read_entity_notes", { entityId }); }
 export async function invokeAddEntityAsset(entityId: string, sourcePath: string, label?: string): Promise<EntityAsset> { return invoke<EntityAsset>("add_entity_asset", { entityId, sourcePath, label: label ?? null }); }
+export async function invokeReadEntityAsset(assetId: string): Promise<string> { return invoke<string>("read_entity_asset", { assetId }); }
 export async function invokeListEntityAssets(entityId: string): Promise<EntityAsset[]> { return invoke<EntityAsset[]>("list_entity_assets", { entityId }); }
 export async function invokeDeleteEntityAsset(assetId: string): Promise<void> { return invoke("delete_entity_asset", { assetId }); }

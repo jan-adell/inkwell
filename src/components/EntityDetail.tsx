@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Upload } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useAppStore } from "../store/appStore";
 import {
   invokeGetFieldValues,
@@ -11,6 +10,7 @@ import {
   invokeSetFieldValue,
   invokeUpdateEntity,
   invokeAddEntityAsset,
+  invokeReadEntityAsset,
   invokeDeleteEntityAsset,
   invokeListEntityAssets,
 } from "../hooks/useTauri";
@@ -74,18 +74,21 @@ function ImageField({
   entity,
   fieldDef,
   asset,
-  projectPath,
   onAssetChanged,
 }: {
   entity: Entity;
   fieldDef: FieldDefinition;
   asset: EntityAsset | undefined;
-  projectPath: string;
   onAssetChanged: () => void;
 }) {
-  const imageUrl = asset && projectPath
-    ? convertFileSrc(`${projectPath}/${asset.relative_path}`)
-    : null;
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!asset) { setImageUrl(null); return; }
+    invokeReadEntityAsset(asset.id)
+      .then(setImageUrl)
+      .catch(() => setImageUrl(null));
+  }, [asset?.id]);
 
   async function pick() {
     const selected = await open({ multiple: false, filters: [{ name: "Image", extensions: IMAGE_EXTENSIONS }] });
@@ -140,7 +143,6 @@ export function PropertyRow({
   fieldValue,
   entity,
   asset,
-  projectPath,
   onDeleted,
   onSaved,
   onAssetChanged,
@@ -149,7 +151,6 @@ export function PropertyRow({
   fieldValue: FieldValue | undefined;
   entity: Entity;
   asset?: EntityAsset;
-  projectPath: string;
   onDeleted: (id: string) => void;
   onSaved: (fv: FieldValue) => void;
   onAssetChanged: () => void;
@@ -192,7 +193,6 @@ export function PropertyRow({
             entity={entity}
             fieldDef={fieldDef}
             asset={asset}
-            projectPath={projectPath}
             onAssetChanged={onAssetChanged}
           />
         ) : fieldDef.field_type === "textarea" ? (
@@ -348,7 +348,7 @@ function updateEntityInStore(updated: Entity) {
 }
 
 export function EntityDetail({ entityId }: { entityId: string }) {
-  const { entityTypes, fieldDefinitionsByType, setFieldDefinitionsForType, projectPath } = useAppStore();
+  const { entityTypes, fieldDefinitionsByType, setFieldDefinitionsForType } = useAppStore();
   const [entity, setEntity] = useState<Entity | null>(() => findEntityInStore(entityId) ?? null);
   const [fieldValues, setFieldValues] = useState<Map<string, FieldValue>>(new Map());
   const [assets, setAssets] = useState<EntityAsset[]>([]);
@@ -472,7 +472,6 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                 fieldValue={fieldValues.get(fd.id)}
                 entity={entity}
                 asset={assets.find((a) => a.label === fd.id)}
-                projectPath={projectPath ?? ""}
                 onDeleted={(id) => {
                   const current = fieldDefinitionsByType[entity.entity_type_id] ?? [];
                   setFieldDefinitionsForType(entity.entity_type_id, current.filter((f) => f.id !== id));

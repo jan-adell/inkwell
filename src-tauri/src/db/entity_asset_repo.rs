@@ -53,6 +53,16 @@ pub fn list(conn: &Connection, entity_id: &str) -> Result<Vec<EntityAsset>> {
     Ok(result)
 }
 
+pub fn get_relative_path(conn: &Connection, asset_id: &str) -> Result<Option<String>> {
+    conn.query_row(
+        "SELECT relative_path FROM entity_assets WHERE id = ?1",
+        params![asset_id],
+        |r| r.get(0),
+    )
+    .optional()
+    .map_err(InkwellError::Database)
+}
+
 pub fn delete(conn: &Connection, asset_id: &str) -> Result<Option<String>> {
     let relative_path: Option<String> = conn
         .query_row(

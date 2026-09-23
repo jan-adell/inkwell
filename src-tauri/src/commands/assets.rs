@@ -168,6 +168,49 @@ pub async fn add_entity_asset(
     entity_asset_repo::insert(&conn, &entity_id, &relative_path, label.as_deref(), 0)
 }
 
+fn mime_for_ext(ext: &str) -> &'static str {
+    match ext {
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        _ => "image/jpeg",
+    }
+}
+
+#[tauri::command]
+pub async fn read_entity_asset(state: State<'_, AppState>, asset_id: String) -> Result<String> {
+    let project_path = {
+        let guard = state
+            .project_path
+            .lock()
+            .map_err(|_| InkwellError::Internal("project_path lock poisoned".into()))?;
+        guard
+            .clone()
+            .ok_or_else(|| InkwellError::Internal("No project is open".into()))?
+    };
+
+    let relative_path = {
+        let conn = state
+            .db
+            .lock()
+            .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+        entity_asset_repo::get_relative_path(&conn, &asset_id)?
+            .ok_or_else(|| InkwellError::NotFound(format!("Asset {asset_id} not found")))?
+    };
+
+    let ext = Path::new(&relative_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let mime = mime_for_ext(&ext);
+
+    let bytes = std::fs::read(project_path.join(&relative_path))?;
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{mime};base64,{encoded}"))
+}
+
 #[tauri::command]
 pub async fn list_entity_assets(
     state: State<'_, AppState>,
