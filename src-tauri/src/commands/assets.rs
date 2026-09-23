@@ -8,11 +8,11 @@ use crate::error::{InkwellError, Result};
 use crate::models::entity_asset::EntityAsset;
 use crate::state::AppState;
 
-const MAX_DIM: u32 = 1200;
+const MAX_DIM: u32 = 200;
 const MAX_INPUT_BYTES: u64 = 20 * 1024 * 1024; // 20 MB — prevent OOM loading huge raws
-const MAX_OUTPUT_BYTES: usize = 512 * 1024; // 512 KB — per-image budget in the project folder
+const MAX_OUTPUT_BYTES: usize = 20 * 1024; // 20 KB — per-image budget in the project folder
 const MAX_COPY_BYTES: u64 = 2 * 1024 * 1024; // 2 MB — for SVG / GIF copied as-is
-const JPEG_QUALITIES: &[u8] = &[85, 70, 55, 40]; // try in order until output fits
+const JPEG_QUALITIES: &[u8] = &[85, 70, 55, 40, 25, 15, 5]; // try in order until output fits
 
 fn output_ext(ext: &str) -> &str {
     match ext {
@@ -273,45 +273,58 @@ mod tests {
         path
     }
 
+    fn write_noisy_jpeg(dir: &Path, name: &str, width: u32, height: u32) -> std::path::PathBuf {
+        let path = dir.join(name);
+        let img = ImageBuffer::from_fn(width, height, |x, y| {
+            Rgb([
+                (x * 37 % 256) as u8,
+                (y * 59 % 256) as u8,
+                ((x + y) * 83 % 256) as u8,
+            ])
+        });
+        img.save(&path).unwrap();
+        path
+    }
+
     // ── dimension limits ─────────────────────────────────────────────────────
 
     #[test]
     fn small_jpeg_is_not_resized() {
         let dir = TempDir::new().unwrap();
-        let src = write_jpeg(dir.path(), "small.jpg", 800, 600);
+        let src = write_jpeg(dir.path(), "small.jpg", 150, 100);
         let dest = dir.path().join("out.jpg");
         resize_and_copy(&src, &dest, "jpg").unwrap();
         let img = image::open(&dest).unwrap();
-        assert_eq!(img.width(), 800);
-        assert_eq!(img.height(), 600);
+        assert_eq!(img.width(), 150);
+        assert_eq!(img.height(), 100);
     }
 
     #[test]
     fn wide_jpeg_is_resized_to_max_width() {
         let dir = TempDir::new().unwrap();
-        let src = write_jpeg(dir.path(), "wide.jpg", 2400, 1000);
+        let src = write_jpeg(dir.path(), "wide.jpg", 800, 400);
         let dest = dir.path().join("out.jpg");
         resize_and_copy(&src, &dest, "jpg").unwrap();
         let img = image::open(&dest).unwrap();
         assert_eq!(img.width(), MAX_DIM);
-        assert!(img.height() <= 500 + 1);
+        assert!(img.height() <= 100 + 1);
     }
 
     #[test]
     fn tall_jpeg_is_resized_to_max_height() {
         let dir = TempDir::new().unwrap();
-        let src = write_jpeg(dir.path(), "tall.jpg", 600, 2400);
+        let src = write_jpeg(dir.path(), "tall.jpg", 400, 800);
         let dest = dir.path().join("out.jpg");
         resize_and_copy(&src, &dest, "jpg").unwrap();
         let img = image::open(&dest).unwrap();
         assert_eq!(img.height(), MAX_DIM);
-        assert!(img.width() <= 300 + 1);
+        assert!(img.width() <= 100 + 1);
     }
 
     #[test]
     fn large_png_is_resized() {
         let dir = TempDir::new().unwrap();
-        let src = write_png(dir.path(), "big.png", 3000, 2000);
+        let src = write_png(dir.path(), "big.png", 4000, 2000);
         let dest = dir.path().join("out.png");
         resize_and_copy(&src, &dest, "png").unwrap();
         let img = image::open(&dest).unwrap();
@@ -408,6 +421,21 @@ mod tests {
         resize_and_copy(&src, &dest, "jpg").unwrap();
         let size = std::fs::metadata(&dest).unwrap().len() as usize;
         assert!(size <= MAX_OUTPUT_BYTES, "output was {size} bytes");
+    }
+
+    #[test]
+    fn noisy_jpeg_fits_under_limit_after_resize_and_quality_reduction() {
+        let dir = TempDir::new().unwrap();
+        let src = write_noisy_jpeg(dir.path(), "noisy.jpg", 1600, 1200);
+        let dest = dir.path().join("out.jpg");
+        resize_and_copy(&src, &dest, "jpg").unwrap();
+
+        let size = std::fs::metadata(&dest).unwrap().len() as usize;
+        assert!(size <= MAX_OUTPUT_BYTES, "output was {size} bytes");
+
+        let img = image::open(&dest).unwrap();
+        assert!(img.width() <= MAX_DIM);
+        assert!(img.height() <= MAX_DIM);
     }
 
     #[test]
