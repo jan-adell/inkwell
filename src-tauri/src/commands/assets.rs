@@ -160,8 +160,19 @@ fn resize_and_copy(src: &Path, dest: &Path, ext: &str) -> Result<()> {
 /// `starts_with`, so both sides must go through the same canonicalization.
 fn ensure_within_project(dest: &Path, project_path: &Path) -> Result<()> {
     let Some(parent) = dest.parent() else {
-        return Ok(());
+        return Err(InkwellError::Validation("Invalid asset path".into()));
     };
+    // Reject traversal components before touching the filesystem at all — the
+    // canonicalize+starts_with check below is the real guarantee, but this
+    // fails fast without creating any directory first.
+    if parent
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(InkwellError::Validation(
+            "Asset path escapes project directory".into(),
+        ));
+    }
     std::fs::create_dir_all(parent)?;
     let canonical_parent = parent.canonicalize()?;
     let canonical_project = project_path.canonicalize()?;
@@ -609,6 +620,25 @@ mod tests {
         let dest = project.join("..").join("outside").join("photo.jpg");
         let err = ensure_within_project(&dest, &project).unwrap_err();
         assert!(matches!(err, InkwellError::Validation(_)));
+    }
+
+    #[test]
+    fn ensure_within_project_rejects_traversal_without_creating_any_directory() {
+        // The `..` component is rejected before create_dir_all runs at all — this
+        // proves it, by pointing the escape at a directory that does not exist yet
+        // and confirming it never gets created.
+        let root = TempDir::new().unwrap();
+        let project = root.path().join("project");
+        std::fs::create_dir_all(&project).unwrap();
+        let never_created = root.path().join("should-not-be-created");
+
+        let dest = project
+            .join("..")
+            .join("should-not-be-created")
+            .join("x.jpg");
+        let err = ensure_within_project(&dest, &project).unwrap_err();
+        assert!(matches!(err, InkwellError::Validation(_)));
+        assert!(!never_created.exists());
     }
 
     #[test]
