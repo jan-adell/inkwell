@@ -14,6 +14,8 @@ export async function invokeListChildDocuments(parentId: string): Promise<Docume
 export async function invokeCreateDocument(projectId: string, req: { node_type: string; title: string; parent_id?: string; status?: string; sort_order?: number }): Promise<Document> { return invoke<Document>("create_document", { projectId, req }); }
 export async function invokeDeleteDocument(id: string): Promise<void> { return invoke<void>("delete_document", { id }); }
 export async function invokeUpdateDocument(id: string, req: { title?: string; synopsis?: string; status?: string; sort_order?: number; parent_id?: string | null }): Promise<Document> { return invoke<Document>("update_document", { id, req }); }
+export type ExportFormat = "txt" | "pdf" | "epub";
+export async function invokeExportBook(projectId: string, format: ExportFormat, destPath: string): Promise<void> { return invoke("export_book", { projectId, format, destPath }); }
 
 export async function invokeListEntityTypes(projectId: string): Promise<EntityType[]> { return invoke<EntityType[]>("list_entity_types", { projectId }); }
 export async function invokeListEntitiesByType(projectId: string, entityTypeId: string): Promise<Entity[]> { return invoke<Entity[]>("list_entities_by_type", { projectId, entityTypeId }); }
