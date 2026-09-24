@@ -61,7 +61,24 @@ jobs:
         run: cargo test
         working-directory: src-tauri
 
-  # ── Windows: unit tests ──────────────────────────────────────────────────────
+  # ── Windows: Rust unit tests ──────────────────────────────────────────────────
+  rust-windows:
+    name: Rust tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Tests
+        run: cargo test --lib
+        working-directory: src-tauri
+
+  # ── Windows: frontend unit tests ────────────────────────────────────────────
   frontend-windows:
     name: Frontend tests (Windows)
     runs-on: windows-latest

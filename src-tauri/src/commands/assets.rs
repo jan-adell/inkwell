@@ -149,6 +149,30 @@ fn resize_and_copy(src: &Path, dest: &Path, ext: &str) -> Result<()> {
     Ok(())
 }
 
+/// Guards against a crafted/traversal path writing outside the project folder.
+/// Creates `dest`'s parent directory (needed before canonicalizing it, since
+/// `canonicalize` requires the path to exist) then verifies the canonical parent
+/// is still inside the canonical project root.
+///
+/// Uses `canonicalize()` rather than plain string prefix checks because on
+/// Windows it returns the `\\?\`-prefixed extended-length form — comparing a
+/// canonicalized path against a non-canonicalized one would spuriously fail
+/// `starts_with`, so both sides must go through the same canonicalization.
+fn ensure_within_project(dest: &Path, project_path: &Path) -> Result<()> {
+    let Some(parent) = dest.parent() else {
+        return Ok(());
+    };
+    std::fs::create_dir_all(parent)?;
+    let canonical_parent = parent.canonicalize()?;
+    let canonical_project = project_path.canonicalize()?;
+    if !canonical_parent.starts_with(&canonical_project) {
+        return Err(InkwellError::Validation(
+            "Asset path escapes project directory".into(),
+        ));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn add_entity_asset(
     state: State<'_, AppState>,
@@ -190,16 +214,7 @@ pub async fn add_entity_asset(
     let relative_path = format!("assets/entities/{entity_id}/{asset_ulid}.{out_ext}");
 
     let dest = project_path.join(&relative_path);
-    if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent)?;
-        let canonical_parent = parent.canonicalize()?;
-        let canonical_project = project_path.canonicalize()?;
-        if !canonical_parent.starts_with(&canonical_project) {
-            return Err(InkwellError::Validation(
-                "Asset path escapes project directory".into(),
-            ));
-        }
-    }
+    ensure_within_project(&dest, &project_path)?;
     resize_and_copy(src, &dest, &ext)?;
 
     let conn = state
@@ -565,5 +580,50 @@ mod tests {
         let img = image::open(&src).unwrap();
         let bytes = encode_jpeg_under_limit(&img, MAX_OUTPUT_BYTES).unwrap();
         assert!(bytes.len() <= MAX_OUTPUT_BYTES);
+    }
+
+    // ── project path scope guard (Windows-sensitive: canonicalize() semantics) ──
+
+    #[test]
+    fn ensure_within_project_accepts_a_path_inside_the_project() {
+        let project = TempDir::new().unwrap();
+        let dest = project
+            .path()
+            .join("assets")
+            .join("entities")
+            .join("e1")
+            .join("photo.jpg");
+        ensure_within_project(&dest, project.path()).unwrap();
+        assert!(dest.parent().unwrap().is_dir());
+    }
+
+    #[test]
+    fn ensure_within_project_rejects_a_traversal_outside_the_project() {
+        let root = TempDir::new().unwrap();
+        let project = root.path().join("project");
+        std::fs::create_dir_all(&project).unwrap();
+        let outside = root.path().join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+
+        // Escapes the project root via `..` before canonicalization resolves it.
+        let dest = project.join("..").join("outside").join("photo.jpg");
+        let err = ensure_within_project(&dest, &project).unwrap_err();
+        assert!(matches!(err, InkwellError::Validation(_)));
+    }
+
+    #[test]
+    fn ensure_within_project_accepts_nested_nonexistent_subdirs() {
+        // Mirrors the real call site: the entity/asset subdirectories don't exist
+        // yet on first upload, only the project root does.
+        let project = TempDir::new().unwrap();
+        let dest = project
+            .path()
+            .join("assets")
+            .join("entities")
+            .join("brand-new-entity-id")
+            .join("first-upload.jpg");
+        assert!(!dest.parent().unwrap().exists());
+        ensure_within_project(&dest, project.path()).unwrap();
+        assert!(dest.parent().unwrap().is_dir());
     }
 }
