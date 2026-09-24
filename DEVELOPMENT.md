@@ -65,15 +65,17 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
-**Rust stable (1.85+):**
+**Rust stable (1.77+):**
 
 ```bash
 curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal
 source "$HOME/.cargo/env"
 ```
 
-> [!IMPORTANT]
-> Inkwell's dependency tree requires Cargo **1.85+** (Rust edition 2024). Run `rustup update stable` if your toolchain is older.
+> [!NOTE]
+> `src-tauri/Cargo.toml` declares `rust-version = "1.77"` (edition 2021) — that's the floor
+> Cargo enforces. Run `rustup update stable` if your toolchain is older; there's no reason
+> not to be on the latest stable otherwise.
 
 ---
 
