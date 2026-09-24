@@ -38,7 +38,9 @@ pub fn create(
 
     let status = req.status.as_deref().unwrap_or("draft");
     if !VALID_STATUSES.contains(&status) {
-        return Err(InkwellError::Validation(format!("Invalid status '{status}'")));
+        return Err(InkwellError::Validation(format!(
+            "Invalid status '{status}'"
+        )));
     }
 
     if let Some(ref parent_id) = req.parent_id {
@@ -99,7 +101,8 @@ pub fn get(conn: &Connection, id: &str) -> Result<Document> {
 fn list(conn: &Connection, sql: &str, id: &str) -> Result<Vec<Document>> {
     let mut stmt = conn.prepare(sql)?;
     let rows = stmt.query_map(params![id], row_to_document)?;
-    rows.map(|row| row.map_err(InkwellError::Database)).collect()
+    rows.map(|row| row.map_err(InkwellError::Database))
+        .collect()
 }
 
 pub fn list_root(conn: &Connection, id: &str) -> Result<Vec<Document>> {
@@ -118,15 +121,13 @@ pub fn list_children(conn: &Connection, id: &str) -> Result<Vec<Document>> {
     )
 }
 
-pub fn update(
-    conn: &Connection,
-    id: &str,
-    req: &UpdateDocumentRequest,
-) -> Result<Document> {
+pub fn update(conn: &Connection, id: &str, req: &UpdateDocumentRequest) -> Result<Document> {
     let current = get(conn, id)?;
     if let Some(ref status) = req.status {
         if !VALID_STATUSES.contains(&status.as_str()) {
-            return Err(InkwellError::Validation(format!("Invalid status '{status}'")));
+            return Err(InkwellError::Validation(format!(
+                "Invalid status '{status}'"
+            )));
         }
     }
 
@@ -156,4 +157,61 @@ pub fn delete(conn: &Connection, id: &str) -> Result<()> {
         params![now, id],
     )?;
     Ok(())
+}
+
+pub fn list_all_content(conn: &Connection, id: &str) -> Result<Vec<Document>> {
+    list(
+        conn,
+        "SELECT id,project_id,parent_id,node_type,title,synopsis,status,word_count,sort_order,is_included,created_at,updated_at,deleted_at FROM documents WHERE project_id=?1 AND node_type != 'folder' AND deleted_at IS NULL ORDER BY title ASC",
+        id,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_conn() -> Connection {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        crate::db::migrations::ensure_migrations_table(&conn).unwrap();
+        crate::db::migrations::run_pending_migrations(&mut conn).unwrap();
+        conn
+    }
+
+    fn make_document(node_type: &str, title: &str) -> CreateDocumentRequest {
+        CreateDocumentRequest {
+            parent_id: None,
+            node_type: node_type.into(),
+            title: title.into(),
+            synopsis: None,
+            status: None,
+            sort_order: None,
+        }
+    }
+
+    #[test]
+    fn list_all_content_excludes_folders_and_deleted() {
+        let conn = test_conn();
+        crate::db::project_repo::create(&conn, "proj-1", "P").unwrap();
+
+        let doc = create(&conn, "proj-1", &make_document("document", "Chapter One")).unwrap();
+        create(&conn, "proj-1", &make_document("scene", "Scene A")).unwrap();
+        create(&conn, "proj-1", &make_document("folder", "Part I")).unwrap();
+        let deleted = create(&conn, "proj-1", &make_document("note", "Old Note")).unwrap();
+        delete(&conn, &deleted.id).unwrap();
+
+        let contents = list_all_content(&conn, "proj-1").unwrap();
+        let titles: Vec<&str> = contents.iter().map(|d| d.title.as_str()).collect();
+
+        assert_eq!(contents.len(), 2);
+        assert!(titles.contains(&"Chapter One"));
+        assert!(titles.contains(&"Scene A"));
+        assert!(!titles.contains(&"Part I"));
+        assert!(!titles.contains(&"Old Note"));
+        assert_eq!(
+            contents.iter().find(|d| d.id == doc.id).unwrap().word_count,
+            0
+        );
+    }
 }

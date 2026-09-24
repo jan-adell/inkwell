@@ -79,6 +79,7 @@ pub fn run() {
             commands::projects::list_known_projects,
             commands::projects::list_projects,
             commands::projects::update_project,
+            commands::stats::get_project_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Inkwell");

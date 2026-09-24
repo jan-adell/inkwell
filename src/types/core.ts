@@ -132,3 +132,16 @@ export interface EntityAsset {
   created_at: string;
 }
 
+export interface DocumentWordCount {
+  id: string;
+  title: string;
+  word_count: number;
+}
+
+export interface ProjectStats {
+  entity_count: number;
+  document_count: number;
+  total_word_count: number;
+  documents: DocumentWordCount[];
+}
+

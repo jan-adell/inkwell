@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Document, Entity, EntityAsset, EntityFolder, EntityType, FieldDefinition, FieldValue, InitResult, KnownProject, OpenProjectResult } from "../types/core";
+import type { Document, Entity, EntityAsset, EntityFolder, EntityType, FieldDefinition, FieldValue, InitResult, KnownProject, OpenProjectResult, ProjectStats } from "../types/core";
 
 export async function invokeInitializeCore(): Promise<InitResult> { return invoke<InitResult>("initialize_core"); }
 export async function invokeDeleteProject(projectId: string): Promise<void> { return invoke("delete_project", { projectId }); }
@@ -41,3 +41,5 @@ export async function invokeReadEntityNotes(entityId: string): Promise<string | 
 export async function invokeAddEntityAsset(entityId: string, sourcePath: string, label?: string): Promise<EntityAsset> { return invoke<EntityAsset>("add_entity_asset", { entityId, sourcePath, label: label ?? null }); }
 export async function invokeListEntityAssets(entityId: string): Promise<EntityAsset[]> { return invoke<EntityAsset[]>("list_entity_assets", { entityId }); }
 export async function invokeDeleteEntityAsset(assetId: string): Promise<void> { return invoke("delete_entity_asset", { assetId }); }
+
+export async function invokeGetProjectStats(projectId: string): Promise<ProjectStats> { return invoke<ProjectStats>("get_project_stats", { projectId }); }

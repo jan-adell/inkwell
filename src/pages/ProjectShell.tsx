@@ -6,6 +6,7 @@ import { CreateDocumentModal } from "../components/CreateDocumentModal";
 import { DocumentEditor } from "../components/DocumentEditor";
 import { EntityDetail } from "../components/EntityDetail";
 import { EntityPanel } from "../components/EntityPanel";
+import { SettingsScreen } from "../components/SettingsScreen";
 import { useAppStore } from "../store/appStore";
 import { invokeUpdateDocument } from "../hooks/useTauri";
 import type { Document } from "../types/core";
@@ -158,12 +159,13 @@ function MainArea() {
   return <main className="flex-1 flex flex-col items-center justify-center bg-ink-void"><FileText size={32} className="text-ivory-ghost opacity-20 mx-auto mb-3" /><p className="text-sm text-ivory-ghost">Select a document to start writing.</p></main>;
 }
 
-function Topbar({ onGoToLibrary }: { onGoToLibrary: () => void }) {
+function Topbar({ onGoToLibrary, onOpenSettings }: { onGoToLibrary: () => void; onOpenSettings: () => void }) {
   const { projectId, knownProjects } = useAppStore();
   const projectName = knownProjects.find((project) => project.project_id === projectId)?.name;
-  return <header className="h-10 flex items-center justify-between px-4 bg-ink-deep border-b border-ink-border flex-shrink-0 select-none"><div className="flex items-center gap-2"><button onClick={onGoToLibrary} title="Back to project library" className="text-sm font-display text-gold tracking-widest uppercase hover:text-gold-bright transition-colors">Inkwell</button>{projectName && <><span className="text-ivory-ghost text-xs">›</span><span className="text-sm text-ivory-dim font-body truncate max-w-48">{projectName}</span></>}</div><button className="flex items-center gap-2 px-3 py-1 rounded bg-ink-surface border border-ink-border text-ivory-ghost text-xs hover:border-gold/40 transition-colors"><Search size={11} /><span className="font-mono">Search…</span><span className="text-ink-muted ml-2 font-mono">⌘K</span></button><div className="flex items-center gap-1">{[{ Icon: Map, title: "Locations" }, { Icon: Clock, title: "Timeline" }, { Icon: Settings, title: "Settings" }].map(({ Icon, title }) => <button key={title} title={title} className="p-1.5 rounded text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"><Icon size={14} /></button>)}</div></header>;
+  return <header className="h-10 flex items-center justify-between px-4 bg-ink-deep border-b border-ink-border flex-shrink-0 select-none"><div className="flex items-center gap-2"><button onClick={onGoToLibrary} title="Back to project library" className="text-sm font-display text-gold tracking-widest uppercase hover:text-gold-bright transition-colors">Inkwell</button>{projectName && <><span className="text-ivory-ghost text-xs">›</span><span className="text-sm text-ivory-dim font-body truncate max-w-48">{projectName}</span></>}</div><button className="flex items-center gap-2 px-3 py-1 rounded bg-ink-surface border border-ink-border text-ivory-ghost text-xs hover:border-gold/40 transition-colors"><Search size={11} /><span className="font-mono">Search…</span><span className="text-ink-muted ml-2 font-mono">⌘K</span></button><div className="flex items-center gap-1">{[{ Icon: Map, title: "Locations", onClick: undefined }, { Icon: Clock, title: "Timeline", onClick: undefined }, { Icon: Settings, title: "Settings", onClick: onOpenSettings }].map(({ Icon, title, onClick }) => <button key={title} title={title} onClick={onClick} className="p-1.5 rounded text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"><Icon size={14} /></button>)}</div></header>;
 }
 
 export function ProjectShell({ onGoToLibrary }: { onGoToLibrary: () => void }) {
-  return <div className="flex flex-col h-full bg-ink-void"><Topbar onGoToLibrary={onGoToLibrary} /><div className="flex flex-1 min-h-0"><div className="w-56 flex-shrink-0"><Sidebar /></div><MainArea /><Inspector /></div><CreateEntityModal /><CreateDocumentModal /></div>;
+  const [showSettings, setShowSettings] = useState(false);
+  return <div className="flex flex-col h-full bg-ink-void"><Topbar onGoToLibrary={onGoToLibrary} onOpenSettings={() => setShowSettings(true)} />{showSettings ? <SettingsScreen onBack={() => setShowSettings(false)} /> : <div className="flex flex-1 min-h-0"><div className="w-56 flex-shrink-0"><Sidebar /></div><MainArea /><Inspector /></div>}<CreateEntityModal /><CreateDocumentModal /></div>;
 }
