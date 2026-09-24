@@ -40,6 +40,11 @@ pub fn all_migrations() -> Vec<Migration> {
             name: "entity_folders",
             sql: include_str!("migrations/004_entity_folders.sql"),
         },
+        Migration {
+            version: 5,
+            name: "relations_unique_active_only",
+            sql: include_str!("migrations/005_relations_unique_active_only.sql"),
+        },
     ]
 }
 

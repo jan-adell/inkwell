@@ -248,6 +248,29 @@ mod tests {
     }
 
     #[test]
+    fn recreating_a_deleted_relation_succeeds() {
+        // The UNIQUE constraint must only cover active (non-soft-deleted) rows —
+        // otherwise deleting a relation and adding the exact same one back
+        // (same source/type/target) is permanently blocked by the old row.
+        let conn = test_conn();
+        let f = setup(&conn);
+        let req = || CreateRelationRequest {
+            source_entity_id: f.e1.clone(),
+            relation_type_id: f.rtid.clone(),
+            target_entity_id: f.e2.clone(),
+            notes: None,
+            sort_order: None,
+        };
+        let first = create(&conn, &f.pid, &req()).unwrap();
+        delete(&conn, &first.id).unwrap();
+
+        let second = create(&conn, &f.pid, &req()).unwrap();
+        assert_eq!(second.source_entity_id, f.e1);
+        assert_eq!(second.target_entity_id, f.e2);
+        assert_ne!(second.id, first.id);
+    }
+
+    #[test]
     fn nonexistent_source_rejected() {
         let conn = test_conn();
         let f = setup(&conn);
