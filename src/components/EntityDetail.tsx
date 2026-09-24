@@ -82,6 +82,7 @@ function ImageField({
   onAssetChanged: () => void;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!asset) { setImageUrl(null); return; }
@@ -90,51 +91,74 @@ function ImageField({
       .catch(() => setImageUrl(null));
   }, [asset?.id]);
 
+  function messageFor(e: unknown): string {
+    return e instanceof Error ? e.message : typeof e === "string" ? e : "Something went wrong.";
+  }
+
   async function pick() {
     const selected = await open({ multiple: false, filters: [{ name: "Image", extensions: IMAGE_EXTENSIONS }] });
     if (typeof selected !== "string") return;
-    if (asset) await invokeDeleteEntityAsset(asset.id);
-    await invokeAddEntityAsset(entity.id, selected, fieldDef.id);
-    onAssetChanged();
+    setError(null);
+    try {
+      // Add the new asset before deleting the old one: if the upload fails (e.g.
+      // the image can't be processed), the existing image must be left intact
+      // rather than silently lost.
+      await invokeAddEntityAsset(entity.id, selected, fieldDef.id);
+      if (asset) await invokeDeleteEntityAsset(asset.id);
+      onAssetChanged();
+    } catch (e) {
+      setError(messageFor(e));
+    }
   }
 
   async function remove() {
     if (!asset) return;
-    await invokeDeleteEntityAsset(asset.id);
-    onAssetChanged();
+    setError(null);
+    try {
+      await invokeDeleteEntityAsset(asset.id);
+      onAssetChanged();
+    } catch (e) {
+      setError(messageFor(e));
+    }
   }
 
   if (imageUrl) {
     return (
-      <div className="relative group/img w-fit">
-        <img src={imageUrl} alt={fieldDef.label} className="h-24 object-cover rounded" />
-        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity">
-          <button
-            onClick={() => void pick()}
-            title="Replace image"
-            className="p-0.5 rounded bg-ink-deep/80 text-ivory-ghost hover:text-ivory transition-colors"
-          >
-            <Upload size={10} />
-          </button>
-          <button
-            onClick={() => void remove()}
-            title="Remove image"
-            className="p-0.5 rounded bg-ink-deep/80 text-ivory-ghost hover:text-crimson transition-colors"
-          >
-            <Trash2 size={10} />
-          </button>
+      <div className="w-fit">
+        <div className="relative group/img w-fit">
+          <img src={imageUrl} alt={fieldDef.label} className="h-24 object-cover rounded" />
+          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity">
+            <button
+              onClick={() => void pick()}
+              title="Replace image"
+              className="p-0.5 rounded bg-ink-deep/80 text-ivory-ghost hover:text-ivory transition-colors"
+            >
+              <Upload size={10} />
+            </button>
+            <button
+              onClick={() => void remove()}
+              title="Remove image"
+              className="p-0.5 rounded bg-ink-deep/80 text-ivory-ghost hover:text-crimson transition-colors"
+            >
+              <Trash2 size={10} />
+            </button>
+          </div>
         </div>
+        {error && <p className="text-[10px] text-crimson mt-1 max-w-[9rem]">{error}</p>}
       </div>
     );
   }
 
   return (
-    <button
-      onClick={() => void pick()}
-      className="text-xs text-ivory-ghost hover:text-ivory transition-colors"
-    >
-      Choose image…
-    </button>
+    <div>
+      <button
+        onClick={() => void pick()}
+        className="text-xs text-ivory-ghost hover:text-ivory transition-colors"
+      >
+        Choose image…
+      </button>
+      {error && <p className="text-[10px] text-crimson mt-1 max-w-[9rem]">{error}</p>}
+    </div>
   );
 }
 

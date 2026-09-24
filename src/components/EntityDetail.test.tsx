@@ -299,7 +299,7 @@ describe("PropertyRow", () => {
       });
     });
 
-    it("deletes old asset before uploading when replacing", async () => {
+    it("adds the new asset before deleting the old one when replacing", async () => {
       const existing = makeAsset();
       const { user, onAssetChanged } = setup("image", undefined, existing);
       mockDialogOpen.mockResolvedValue("/home/user/new.jpg");
@@ -312,6 +312,27 @@ describe("PropertyRow", () => {
         expect(mockDeleteEntityAsset).toHaveBeenCalledWith("asset1");
         expect(mockAddEntityAsset).toHaveBeenCalledWith("e1", "/home/user/new.jpg", "fd1");
         expect(onAssetChanged).toHaveBeenCalled();
+      });
+      const addOrder = mockAddEntityAsset.mock.invocationCallOrder[0];
+      const deleteOrder = mockDeleteEntityAsset.mock.invocationCallOrder[0];
+      expect(addOrder).toBeLessThan(deleteOrder);
+    });
+
+    it("keeps the old asset when the new upload fails", async () => {
+      const existing = makeAsset();
+      const { user, onAssetChanged } = setup("image", undefined, existing);
+      mockDialogOpen.mockResolvedValue("/home/user/new.jpg");
+      mockAddEntityAsset.mockRejectedValue(new Error("Image could not be reduced to under 20KB"));
+      await waitFor(() => screen.getByRole("img"));
+      const replaceBtn = screen.getByTitle("Replace image");
+      await user.click(replaceBtn);
+      await waitFor(() => {
+        expect(mockAddEntityAsset).toHaveBeenCalled();
+      });
+      expect(mockDeleteEntityAsset).not.toHaveBeenCalled();
+      expect(onAssetChanged).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(screen.getByText(/could not be reduced/i)).toBeInTheDocument();
       });
     });
 

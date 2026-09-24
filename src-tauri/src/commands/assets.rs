@@ -103,12 +103,36 @@ fn resize_and_copy(src: &Path, dest: &Path, ext: &str) -> Result<()> {
     } else {
         // GIF is decoded to its first frame here too — animation isn't kept,
         // since these are static reference thumbnails.
-        image::open(src)
+        //
+        // image::open()'s default Limits cap decode-time allocation at 512MiB,
+        // which a genuinely large photo (e.g. 48MP+) can exceed even though the
+        // compressed file is well under MAX_INPUT_BYTES. We already bound the
+        // input file size above, so raise the decode-side limit rather than
+        // fail on legitimate large photos.
+        let mut reader = image::ImageReader::open(src)
+            .map_err(|e| InkwellError::Validation(format!("Could not read image: {e}")))?;
+        let mut limits = image::Limits::no_limits();
+        limits.max_alloc = Some(2 * 1024 * 1024 * 1024);
+        reader.limits(limits);
+        reader
+            .decode()
             .map_err(|e| InkwellError::Validation(format!("Could not read image: {e}")))?
     };
 
     let (w, h) = img.dimensions();
     let img = if w > MAX_DIM || h > MAX_DIM {
+        // A single Lanczos3 pass widens its filter kernel proportionally to the
+        // downsampling ratio to avoid aliasing, so resizing a high-megapixel photo
+        // (e.g. 8000x6000) straight down to 200px can take tens of seconds to
+        // minutes — easily long enough to look like the app just isn't responding.
+        // Prefilter with the crate's fast box-style `thumbnail` (cheap, one input
+        // pixel maps to one output pixel) down to a moderate size first, then do
+        // the final high-quality Lanczos3 pass at a small, cheap ratio.
+        let img = if w > MAX_DIM * 4 || h > MAX_DIM * 4 {
+            img.thumbnail(MAX_DIM * 4, MAX_DIM * 4)
+        } else {
+            img
+        };
         img.resize(MAX_DIM, MAX_DIM, image::imageops::FilterType::Lanczos3)
     } else {
         img
@@ -303,6 +327,48 @@ mod tests {
     }
 
     // ── dimension limits ─────────────────────────────────────────────────────
+
+    #[test]
+    fn high_megapixel_image_decodes_and_resizes() {
+        // image::open()'s default decode Limits cap allocation at 512MiB.
+        // A 15000x12000 RGBA8 source decodes to ~686MiB, past that default —
+        // this reproduces a real report of large (high-megapixel) photos
+        // silently failing to update. PNG is used here purely because a
+        // uniform buffer deflates almost instantly (unlike JPEG's per-block
+        // DCT, which would make this test slow); the decode path being
+        // exercised is the same one every format goes through.
+        let dir = TempDir::new().unwrap();
+        let src = write_png(dir.path(), "huge.png", 15000, 12000);
+        let dest = dir.path().join("out.png");
+        resize_and_copy(&src, &dest, "png").unwrap();
+
+        let img = image::open(&dest).unwrap();
+        assert!(img.width() <= MAX_DIM);
+        assert!(img.height() <= MAX_DIM);
+    }
+
+    #[test]
+    fn high_megapixel_image_resizes_quickly() {
+        // Regression guard: a single Lanczos3 pass on a very large downsampling
+        // ratio widens its filter kernel proportionally and can take minutes (this
+        // is what the earlier bug report — "large jpg images just don't update" —
+        // turned out to be). The thumbnail-prefilter step must keep this fast.
+        // 6000x4000 (24MP, a realistic "large photo") already has enough of a
+        // downsampling ratio (~30x) to trigger the pathological case pre-fix,
+        // without paying the setup cost of the 512MiB-boundary test above.
+        let dir = TempDir::new().unwrap();
+        let src = write_jpeg(dir.path(), "large_photo.jpg", 6000, 4000);
+        let dest = dir.path().join("out.jpg");
+
+        let start = std::time::Instant::now();
+        resize_and_copy(&src, &dest, "jpg").unwrap();
+        let elapsed = start.elapsed();
+
+        assert!(
+            elapsed.as_secs() < 10,
+            "resize took {elapsed:?}, expected well under 10s"
+        );
+    }
 
     #[test]
     fn small_jpeg_is_not_resized() {
