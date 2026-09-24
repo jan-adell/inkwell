@@ -6,8 +6,11 @@ import {
   invokeListFieldDefinitions,
   invokeListEntityAssets,
   invokeReadEntityAsset,
+  invokeListRelationTypes,
+  invokeListOutgoingRelations,
+  invokeListIncomingRelations,
 } from "../hooks/useTauri";
-import type { Entity, EntityAsset, EntityType, FieldDefinition, FieldValue } from "../types/core";
+import type { Entity, EntityAsset, EntityType, FieldDefinition, FieldValue, Relation } from "../types/core";
 
 function getTextValue(fv: FieldValue): string {
   if (fv.value_text !== null) return fv.value_text;
@@ -56,12 +59,17 @@ export function EntityPanel() {
     entityTypes,
     fieldDefinitionsByType,
     setFieldDefinitionsForType,
+    projectId,
+    relationTypes,
+    setRelationTypes,
   } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [fieldValues, setFieldValues] = useState<Map<string, FieldValue>>(new Map());
   const [allEntities, setAllEntities] = useState<Entity[]>([]);
   const [assets, setAssets] = useState<EntityAsset[]>([]);
+  const [outgoingRelations, setOutgoingRelations] = useState<Relation[]>([]);
+  const [incomingRelations, setIncomingRelations] = useState<Relation[]>([]);
 
   useEffect(() => {
     setAllEntities(allEntitiesFromStore());
@@ -106,6 +114,34 @@ export function EntityPanel() {
       .then(setAssets)
       .catch(() => setAssets([]));
   }, [selectedEntityId]);
+
+  useEffect(() => {
+    if (relationTypes.length === 0 && projectId) {
+      invokeListRelationTypes(projectId).then(setRelationTypes).catch(() => {});
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!selectedEntityId) { setOutgoingRelations([]); setIncomingRelations([]); return; }
+    invokeListOutgoingRelations(selectedEntityId).then(setOutgoingRelations).catch(() => {});
+    invokeListIncomingRelations(selectedEntityId).then(setIncomingRelations).catch(() => {});
+  }, [selectedEntityId]);
+
+  const relationRows = [
+    ...outgoingRelations.map((r) => ({
+      relation: r,
+      roleLabel: relationTypes.find((t) => t.id === r.relation_type_id)?.label ?? "Related to",
+      otherEntityId: r.target_entity_id,
+    })),
+    ...incomingRelations.map((r) => {
+      const type = relationTypes.find((t) => t.id === r.relation_type_id);
+      return {
+        relation: r,
+        roleLabel: type?.inverse_label ?? type?.label ?? "Related to",
+        otherEntityId: r.source_entity_id,
+      };
+    }),
+  ];
 
   const filtered = searchQuery.trim()
     ? allEntities.filter((e) =>
@@ -200,6 +236,24 @@ export function EntityPanel() {
                     <div key={fd.id} className="flex gap-2 text-xs">
                       <span className="text-ivory-ghost w-24 flex-shrink-0 truncate">{fd.label}</span>
                       <span className="text-ivory-dim truncate">{val}{unit && <span className="text-ivory-ghost ml-0.5">{unit}</span>}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {relationRows.length > 0 && (
+              <div className="space-y-1 pt-1 border-t border-ink-border">
+                {relationRows.map(({ relation, roleLabel, otherEntityId }) => {
+                  const other = allEntities.find((e) => e.id === otherEntityId);
+                  return (
+                    <div key={relation.id} className="flex gap-2 text-xs">
+                      <span className="text-ivory-ghost w-24 flex-shrink-0 truncate">{roleLabel}</span>
+                      <button
+                        onClick={() => setSelectedEntityId(otherEntityId)}
+                        className="text-ivory-dim truncate hover:text-gold transition-colors text-left"
+                      >
+                        {other?.name ?? "Unknown entity"}
+                      </button>
                     </div>
                   );
                 })}
