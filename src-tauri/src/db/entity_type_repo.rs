@@ -81,8 +81,6 @@ pub fn list(conn: &Connection, project_id: &str) -> Result<Vec<EntityType>> {
 
 pub fn update(conn: &Connection, id: &str, req: &UpdateEntityTypeRequest) -> Result<EntityType> {
     let now = chrono::Utc::now().to_rfc3339();
-
-    // Fetch current to apply partial update
     let current = get(conn, id)?;
 
     let name = req.name.as_deref().unwrap_or(&current.name);
@@ -186,7 +184,8 @@ mod tests {
         conn.execute(
             "INSERT INTO projects(id,name,created_at,updated_at) VALUES(?1,'Test','2026-01-01','2026-01-01')",
             params![pid],
-        ).unwrap();
+        )
+        .unwrap();
         pid
     }
 
@@ -357,7 +356,8 @@ mod tests {
             "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
              VALUES(?1,?2,'System',1,0,'2026-01-01','2026-01-01')",
             params![sid, pid],
-        ).unwrap();
+        )
+        .unwrap();
 
         let result = delete(&conn, &sid);
         assert!(matches!(result, Err(InkwellError::Forbidden(_))));

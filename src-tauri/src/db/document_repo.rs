@@ -1,9 +1,10 @@
+use rusqlite::{params, Connection};
+
 use crate::error::{InkwellError, Result};
 use crate::models::document::{
     CreateDocumentRequest, Document, UpdateDocumentRequest, VALID_NODE_TYPES, VALID_STATUSES,
 };
 use crate::models::document_content::EMPTY_DOC_JSON;
-use rusqlite::{params, Connection};
 
 fn row_to_document(row: &rusqlite::Row) -> rusqlite::Result<Document> {
     Ok(Document {
@@ -22,6 +23,7 @@ fn row_to_document(row: &rusqlite::Row) -> rusqlite::Result<Document> {
         deleted_at: row.get(12)?,
     })
 }
+
 pub fn create(
     conn: &Connection,
     project_id: &str,
@@ -33,55 +35,102 @@ pub fn create(
             req.node_type
         )));
     }
+
     let status = req.status.as_deref().unwrap_or("draft");
     if !VALID_STATUSES.contains(&status) {
         return Err(InkwellError::Validation(format!(
             "Invalid status '{status}'"
         )));
     }
-    if let Some(ref pid) = req.parent_id {
+
+    if let Some(ref parent_id) = req.parent_id {
         let exists: bool = conn
             .query_row(
                 "SELECT 1 FROM documents WHERE id=?1 AND project_id=?2 AND deleted_at IS NULL",
-                params![pid, project_id],
+                params![parent_id, project_id],
                 |_| Ok(true),
             )
             .unwrap_or(false);
         if !exists {
             return Err(InkwellError::Validation(format!(
-                "Parent document '{pid}' does not exist"
+                "Parent document '{parent_id}' does not exist"
             )));
         }
     }
+
     let id = ulid::Ulid::new().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let tx = conn.unchecked_transaction()?;
-    tx.execute("INSERT INTO documents (id,project_id,parent_id,node_type,title,synopsis,status,word_count,sort_order,is_included,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,0,?8,1,?9,?9)",params![id,project_id,req.parent_id,req.node_type,req.title,req.synopsis,status,req.sort_order.unwrap_or(0),now])?;
-    tx.execute("INSERT INTO document_contents(document_id,content_json,content_text,updated_at) VALUES (?1,?2,'',?3)",params![id,EMPTY_DOC_JSON,now])?;
+    tx.execute(
+        "INSERT INTO documents (id,project_id,parent_id,node_type,title,synopsis,status,word_count,sort_order,is_included,created_at,updated_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,0,?8,1,?9,?9)",
+        params![
+            id,
+            project_id,
+            req.parent_id,
+            req.node_type,
+            req.title,
+            req.synopsis,
+            status,
+            req.sort_order.unwrap_or(0),
+            now,
+        ],
+    )?;
+    tx.execute(
+        "INSERT INTO document_contents(document_id,content_json,content_text,updated_at) VALUES (?1,?2,'',?3)",
+        params![id, EMPTY_DOC_JSON, now],
+    )?;
     tx.commit()?;
     get(conn, &id)
 }
+
 pub fn get(conn: &Connection, id: &str) -> Result<Document> {
-    conn.query_row("SELECT id,project_id,parent_id,node_type,title,synopsis,status,word_count,sort_order,is_included,created_at,updated_at,deleted_at FROM documents WHERE id=?1",params![id],row_to_document).map_err(|e|match e{rusqlite::Error::QueryReturnedNoRows=>InkwellError::NotFound(format!("Document '{id}' not found")),other=>InkwellError::Database(other)})
+    conn.query_row(
+        "SELECT id,project_id,parent_id,node_type,title,synopsis,status,word_count,sort_order,is_included,created_at,updated_at,deleted_at FROM documents WHERE id=?1",
+        params![id],
+        row_to_document,
+    )
+    .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => {
+            InkwellError::NotFound(format!("Document '{id}' not found"))
+        }
+        other => InkwellError::Database(other),
+    })
 }
+
 fn list(conn: &Connection, sql: &str, id: &str) -> Result<Vec<Document>> {
     let mut stmt = conn.prepare(sql)?;
     let rows = stmt.query_map(params![id], row_to_document)?;
-    rows.map(|r| r.map_err(InkwellError::Database)).collect()
+    rows.map(|row| row.map_err(InkwellError::Database))
+        .collect()
 }
+
 pub fn list_root(conn: &Connection, id: &str) -> Result<Vec<Document>> {
-    list(conn,"SELECT id,project_id,parent_id,node_type,title,synopsis,status,word_count,sort_order,is_included,created_at,updated_at,deleted_at FROM documents WHERE project_id=?1 AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC,title ASC",id)
+    list(
+        conn,
+        "SELECT id,project_id,parent_id,node_type,title,synopsis,status,word_count,sort_order,is_included,created_at,updated_at,deleted_at FROM documents WHERE project_id=?1 AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC,title ASC",
+        id,
+    )
 }
+
 pub fn list_children(conn: &Connection, id: &str) -> Result<Vec<Document>> {
-    list(conn,"SELECT id,project_id,parent_id,node_type,title,synopsis,status,word_count,sort_order,is_included,created_at,updated_at,deleted_at FROM documents WHERE parent_id=?1 AND deleted_at IS NULL ORDER BY sort_order ASC,title ASC",id)
+    list(
+        conn,
+        "SELECT id,project_id,parent_id,node_type,title,synopsis,status,word_count,sort_order,is_included,created_at,updated_at,deleted_at FROM documents WHERE parent_id=?1 AND deleted_at IS NULL ORDER BY sort_order ASC,title ASC",
+        id,
+    )
 }
+
 pub fn update(conn: &Connection, id: &str, req: &UpdateDocumentRequest) -> Result<Document> {
     let current = get(conn, id)?;
-    if let Some(ref s) = req.status {
-        if !VALID_STATUSES.contains(&s.as_str()) {
-            return Err(InkwellError::Validation(format!("Invalid status '{s}'")));
+    if let Some(ref status) = req.status {
+        if !VALID_STATUSES.contains(&status.as_str()) {
+            return Err(InkwellError::Validation(format!(
+                "Invalid status '{status}'"
+            )));
         }
     }
+
     let parent_id = match &req.parent_id {
         Some(inner) => inner.clone(),
         None => current.parent_id.clone(),
@@ -92,9 +141,14 @@ pub fn update(conn: &Connection, id: &str, req: &UpdateDocumentRequest) -> Resul
     let sort_order = req.sort_order.unwrap_or(current.sort_order);
     let included = req.is_included.unwrap_or(current.is_included) as i64;
     let now = chrono::Utc::now().to_rfc3339();
-    conn.execute("UPDATE documents SET parent_id=?1,title=?2,synopsis=?3,status=?4,sort_order=?5,is_included=?6,updated_at=?7 WHERE id=?8 AND deleted_at IS NULL",params![parent_id,title,synopsis,status,sort_order,included,now,id])?;
+
+    conn.execute(
+        "UPDATE documents SET parent_id=?1,title=?2,synopsis=?3,status=?4,sort_order=?5,is_included=?6,updated_at=?7 WHERE id=?8 AND deleted_at IS NULL",
+        params![parent_id, title, synopsis, status, sort_order, included, now, id],
+    )?;
     get(conn, id)
 }
+
 pub fn delete(conn: &Connection, id: &str) -> Result<()> {
     get(conn, id)?;
     let now = chrono::Utc::now().to_rfc3339();

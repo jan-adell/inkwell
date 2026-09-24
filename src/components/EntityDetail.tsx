@@ -22,6 +22,8 @@ const ADDABLE_FIELD_TYPES: { label: string; type: FieldType }[] = [
   { label: "Number", type: "number" },
   { label: "Date", type: "date" },
   { label: "Image", type: "image" },
+  { label: "Entity", type: "entity_ref" },
+  { label: "Entity List", type: "multiselect" },
 ];
 
 const SI_UNIT_GROUPS: { group: string; units: { symbol: string; name: string }[] }[] = [
@@ -51,11 +53,33 @@ function getNumberUnit(fieldDef: FieldDefinition): string {
   }
 }
 
+function parseEntityTypeIdFromOptions(options: string | null | undefined): string | null {
+  if (!options) return null;
+
+  try {
+    const parsed = JSON.parse(options);
+    if (typeof parsed === "string") return parsed || null;
+    if (parsed && typeof parsed === "object") {
+      if (typeof parsed.entityTypeId === "string") return parsed.entityTypeId;
+      if (typeof parsed.entity_type_id === "string") return parsed.entity_type_id;
+    }
+  } catch {
+    // ignore invalid JSON metadata and treat as unset
+  }
+
+  return null;
+}
+
+function encodeEntityTypeOptions(entityTypeId: string): string {
+  return JSON.stringify({ entityTypeId });
+}
+
 function getTextValue(fv: FieldValue): string {
   if (fv.value_text !== null) return fv.value_text;
   if (fv.value_date !== null) return fv.value_date;
   if (fv.value_number !== null) return String(fv.value_number);
   if (fv.value_boolean !== null) return fv.value_boolean ? "true" : "false";
+  if (fv.value_json !== null) return fv.value_json;
   return "";
 }
 
@@ -64,6 +88,8 @@ function fieldValuePayload(fieldType: FieldType, raw: string): { type: string; v
     case "number": return { type: "Number", value: parseFloat(raw) || 0 };
     case "boolean": return { type: "Boolean", value: raw === "true" };
     case "date": return { type: "Date", value: raw };
+    case "multiselect": return { type: "Json", value: raw || "[]" };
+    case "entity_ref": return { type: "Text", value: raw };
     default: return { type: "Text", value: raw };
   }
 }
@@ -179,21 +205,31 @@ export function PropertyRow({
   onSaved: (fv: FieldValue) => void;
   onAssetChanged: () => void;
 }) {
+  const { entityTypes } = useAppStore();
   const [draft, setDraft] = useState(fieldValue ? getTextValue(fieldValue) : "");
   const unit = getNumberUnit(fieldDef);
+
+  const entityTypeId = parseEntityTypeIdFromOptions(fieldDef.options);
+  const configuredEntityType = entityTypeId
+    ? entityTypes.find((type) => type.id === entityTypeId)
+    : undefined;
+  const entityOptions = configuredEntityType
+    ? (useAppStore.getState().entitiesByType[configuredEntityType.id] ?? [])
+    : [];
 
   useEffect(() => {
     setDraft(fieldValue ? getTextValue(fieldValue) : "");
   }, [fieldValue]);
 
-  async function save() {
+  async function save(nextValue: string) {
     try {
       const saved = await invokeSetFieldValue({
         entity_id: entity.id,
         field_def_id: fieldDef.id,
-        value: fieldValuePayload(fieldDef.field_type, draft),
+        value: fieldValuePayload(fieldDef.field_type, nextValue),
       });
       onSaved(saved);
+      setDraft(nextValue);
     } catch {
       // ignore
     }
@@ -206,6 +242,64 @@ export function PropertyRow({
     } catch {
       // ignore
     }
+  }
+
+  function renderEntitySelect() {
+    if (!configuredEntityType) {
+      return <span className="text-xs text-ivory-ghost italic">Missing entity type</span>;
+    }
+
+    const selectedValue = fieldValue?.value_text ?? "";
+
+    return (
+      <select
+        value={selectedValue}
+        onChange={(e) => {
+          const nextValue = e.target.value;
+          void save(nextValue);
+        }}
+        className="w-full bg-transparent text-ivory text-sm focus:outline-none"
+      >
+        <option value="">Select {configuredEntityType.name}</option>
+        {entityOptions.map((item) => (
+          <option key={item.id} value={item.id}>{item.name}</option>
+        ))}
+      </select>
+    );
+  }
+
+  function renderEntityListSelect() {
+    if (!configuredEntityType) {
+      return <span className="text-xs text-ivory-ghost italic">Missing entity type</span>;
+    }
+
+    let selectedIds: string[] = [];
+    if (fieldValue?.value_json) {
+      try {
+        const parsed = JSON.parse(fieldValue.value_json) as unknown;
+        if (Array.isArray(parsed)) {
+          selectedIds = parsed.filter((item): item is string => typeof item === "string");
+        }
+      } catch {
+        // ignore malformed data
+      }
+    }
+
+    return (
+      <select
+        multiple
+        value={selectedIds}
+        onChange={(e) => {
+          const nextIds = Array.from(e.target.selectedOptions, (option) => option.value);
+          void save(JSON.stringify(nextIds));
+        }}
+        className="w-full bg-transparent text-ivory text-sm focus:outline-none min-h-[84px]"
+      >
+        {entityOptions.map((item) => (
+          <option key={item.id} value={item.id}>{item.name}</option>
+        ))}
+      </select>
+    );
   }
 
   return (
@@ -223,17 +317,21 @@ export function PropertyRow({
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => void save()}
+            onBlur={() => void save(draft)}
             rows={3}
             className="w-full bg-transparent text-ivory text-sm focus:outline-none resize-none"
           />
+        ) : fieldDef.field_type === "entity_ref" ? (
+          renderEntitySelect()
+        ) : fieldDef.field_type === "multiselect" ? (
+          renderEntityListSelect()
         ) : (
           <div className="flex items-baseline gap-1 min-w-0">
             <input
               type={fieldDef.field_type === "date" ? "date" : "text"}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => void save()}
+              onBlur={() => void save(draft)}
               className={`bg-transparent text-ivory text-sm focus:outline-none ${unit ? "w-20" : "min-w-0 w-full"}`}
             />
             {unit && <span className="text-xs text-ivory-ghost">{unit}</span>}
@@ -258,32 +356,70 @@ function AddPropertyForm({
   entity: Entity;
   onAdded: (fd: FieldDefinition) => void;
 }) {
+  const { entityTypes } = useAppStore();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
-  const [fieldType, setFieldType] = useState<FieldType>("text");
+  const [fieldType, setFieldType] = useState<FieldType | null>(null);
   const [unit, setUnit] = useState("");
+  const [entityTypeId, setEntityTypeId] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  function resetForm() {
+    setLabel("");
+    setFieldType(null);
+    setEntityTypeId("");
+    setError(null);
+    setOpen(false);
+  }
 
   async function submit() {
     const trimmed = label.trim();
-    if (!trimmed) { setOpen(false); return; }
-    const options = fieldType === "number" && unit ? JSON.stringify({ unit }) : undefined;
+    if (!trimmed) {
+      setError("Please enter a property label.");
+      return;
+    }
+
+    if (!fieldType) {
+      setError("Please select a property type.");
+      return;
+    }
+
+    if ((fieldType === "entity_ref" || fieldType === "multiselect") && !entityTypeId) {
+      setError("Please select an entity type.");
+      return;
+    }
+
     try {
-      const fd = await invokeCreateFieldDefinition({
+      const payload: {
+        entity_type_id: string;
+        name: string;
+        label: string;
+        field_type: string;
+        options?: string;
+      } = {
         entity_type_id: entity.entity_type_id,
         name: trimmed.toLowerCase().replace(/\s+/g, "_"),
         label: trimmed,
         field_type: fieldType,
-        options,
-      });
+      };
+
+      if (fieldType === "entity_ref" || fieldType === "multiselect") {
+        payload.options = encodeEntityTypeOptions(entityTypeId);
+      } else if (fieldType === "number" && unit) {
+        payload.options = JSON.stringify({ unit });
+      }
+
+      const fd = await invokeCreateFieldDefinition(payload);
       onAdded(fd);
+      resetForm();
     } catch {
-      // ignore
+      setError("Unable to create property.");
     }
-    setLabel("");
-    setOpen(false);
   }
 
   if (!open) {
@@ -304,15 +440,26 @@ function AddPropertyForm({
         ref={inputRef}
         value={label}
         onChange={(e) => setLabel(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") void submit(); if (e.key === "Escape") setOpen(false); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void submit();
+          if (e.key === "Escape") resetForm();
+        }}
         placeholder="Property label…"
         className="w-full bg-ink-muted text-ivory text-sm px-2 py-1 rounded focus:outline-none"
       />
+
+      {error && <p className="text-[10px] text-crimson">{error}</p>}
+
       <div className="flex gap-2 flex-wrap">
         {ADDABLE_FIELD_TYPES.map((opt) => (
           <button
             key={opt.type}
-            onClick={() => { setFieldType(opt.type); if (opt.type !== "number") setUnit(""); }}
+            type="button"
+            onClick={() => {
+              setFieldType(opt.type);
+              setError(null);
+              if (opt.type !== "number") setUnit("");
+            }}
             className={`text-xs px-2 py-0.5 rounded transition-colors ${fieldType === opt.type ? "bg-gold/30 text-gold" : "bg-ink-muted text-ivory-ghost hover:text-ivory"}`}
           >
             {opt.label}
@@ -340,9 +487,43 @@ function AddPropertyForm({
           </select>
         </div>
       )}
+
+      {(fieldType === "entity_ref" || fieldType === "multiselect") && (
+        <div className="space-y-1">
+          <label className="block text-[10px] uppercase tracking-wider text-ivory-ghost">
+            Entity type
+          </label>
+          <select
+            value={entityTypeId}
+            onChange={(e) => {
+              setEntityTypeId(e.target.value);
+              setError(null);
+            }}
+            className="w-full bg-ink-muted text-ivory text-xs px-2 py-1 rounded focus:outline-none"
+          >
+            <option value="">Select entity type…</option>
+            {entityTypes.map((type) => (
+              <option key={type.id} value={type.id}>{type.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="flex gap-2">
-        <button onClick={() => void submit()} className="flex-1 text-xs bg-gold/20 text-gold rounded py-0.5 hover:bg-gold/30">Add</button>
-        <button onClick={() => setOpen(false)} className="flex-1 text-xs text-ivory-ghost rounded py-0.5 hover:bg-ink-muted">Cancel</button>
+        <button
+          type="button"
+          onClick={() => void submit()}
+          className="flex-1 text-xs bg-gold/20 text-gold rounded py-0.5 hover:bg-gold/30"
+        >
+          Add
+        </button>
+        <button
+          type="button"
+          onClick={resetForm}
+          className="flex-1 text-xs text-ivory-ghost rounded py-0.5 hover:bg-ink-muted"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );
