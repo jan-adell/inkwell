@@ -14,14 +14,32 @@ const MAX_INPUT_BYTES: u64 = 20 * 1024 * 1024; // 20 MB — prevent OOM loading 
 const MAX_OUTPUT_BYTES: usize = 20 * 1024; // 20 KB — per-image budget in the project folder
 const JPEG_QUALITIES: &[u8] = &[85, 70, 55, 40, 25, 15, 5]; // try in order until output fits
 
-// These are reference thumbnails for the writer's own use, not artwork storage —
-// everything is rasterized and re-encoded, so only PNG (for transparency) keeps
-// its original format; SVG, GIF and everything else become JPEG.
-fn output_ext(ext: &str) -> &str {
-    match ext {
-        "png" => "png",
-        _ => "jpg",
+// These are reference thumbnails for the writer's own use, not artwork storage.
+// Every accepted format is rasterized and re-encoded as JPEG — PNG has no
+// quality knob, so a busy PNG can't reliably be pushed under MAX_OUTPUT_BYTES
+// the way a JPEG can via the quality ladder below. Transparency (if any) is
+// composited onto white before encoding, since JPEG has no alpha channel.
+fn output_ext(_ext: &str) -> &str {
+    "jpg"
+}
+
+/// JPEG has no alpha channel — flatten any transparency onto a white background
+/// before encoding. Without this, `image`'s JPEG encoder would silently drop the
+/// alpha channel via `to_rgb8()`, leaving whatever raw RGB values sat underneath
+/// (often black) instead of the intended white/blank background.
+fn flatten_to_white(img: image::DynamicImage) -> image::DynamicImage {
+    if !img.color().has_alpha() {
+        return img;
     }
+    let rgba = img.to_rgba8();
+    let mut rgb = image::RgbImage::new(rgba.width(), rgba.height());
+    for (dst, src) in rgb.pixels_mut().zip(rgba.pixels()) {
+        let [r, g, b, a] = src.0;
+        let alpha = a as f32 / 255.0;
+        let blend = |c: u8| (c as f32 * alpha + 255.0 * (1.0 - alpha)).round() as u8;
+        *dst = image::Rgb([blend(r), blend(g), blend(b)]);
+    }
+    image::DynamicImage::ImageRgb8(rgb)
 }
 
 fn rasterize_svg(data: &[u8]) -> Result<image::DynamicImage> {
@@ -71,20 +89,6 @@ fn encode_jpeg_under_limit(img: &image::DynamicImage, max_bytes: usize) -> Resul
         "Image could not be reduced to under {}KB even at minimum quality. Try a smaller image.",
         max_bytes / 1024
     )))
-}
-
-fn encode_png_checked(img: &image::DynamicImage, max_bytes: usize) -> Result<Vec<u8>> {
-    let mut buf = Vec::new();
-    img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
-        .map_err(|e| InkwellError::Validation(e.to_string()))?;
-    if buf.len() > max_bytes {
-        return Err(InkwellError::Validation(format!(
-            "PNG is still too large after resizing ({}KB, limit {}KB). Save as JPEG to reduce size.",
-            buf.len() / 1024,
-            max_bytes / 1024
-        )));
-    }
-    Ok(buf)
 }
 
 fn resize_and_copy(src: &Path, dest: &Path, ext: &str) -> Result<()> {
@@ -138,11 +142,8 @@ fn resize_and_copy(src: &Path, dest: &Path, ext: &str) -> Result<()> {
         img
     };
 
-    let bytes = if ext == "png" {
-        encode_png_checked(&img, MAX_OUTPUT_BYTES)?
-    } else {
-        encode_jpeg_under_limit(&img, MAX_OUTPUT_BYTES)?
-    };
+    let img = flatten_to_white(img);
+    let bytes = encode_jpeg_under_limit(&img, MAX_OUTPUT_BYTES)?;
 
     std::fs::write(dest, bytes)?;
     Ok(())
@@ -208,15 +209,6 @@ pub async fn add_entity_asset(
     entity_asset_repo::insert(&conn, &entity_id, &relative_path, label.as_deref(), 0)
 }
 
-// Stored assets are always re-encoded to PNG or JPEG at upload time (see
-// output_ext), so those are the only two MIME types this ever needs to return.
-fn mime_for_ext(ext: &str) -> &'static str {
-    match ext {
-        "png" => "image/png",
-        _ => "image/jpeg",
-    }
-}
-
 #[tauri::command]
 pub async fn read_entity_asset(state: State<'_, AppState>, asset_id: String) -> Result<String> {
     let project_path = {
@@ -238,17 +230,11 @@ pub async fn read_entity_asset(state: State<'_, AppState>, asset_id: String) -> 
             .ok_or_else(|| InkwellError::NotFound(format!("Asset {asset_id} not found")))?
     };
 
-    let ext = Path::new(&relative_path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    let mime = mime_for_ext(&ext);
-
+    // Every stored asset is re-encoded to JPEG at upload time (see output_ext).
     let bytes = std::fs::read(project_path.join(&relative_path))?;
     use base64::Engine;
     let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
-    Ok(format!("data:{mime};base64,{encoded}"))
+    Ok(format!("data:image/jpeg;base64,{encoded}"))
 }
 
 #[tauri::command]
@@ -339,7 +325,7 @@ mod tests {
         // exercised is the same one every format goes through.
         let dir = TempDir::new().unwrap();
         let src = write_png(dir.path(), "huge.png", 15000, 12000);
-        let dest = dir.path().join("out.png");
+        let dest = dir.path().join("out.jpg"); // output is always JPEG regardless of input format
         resize_and_copy(&src, &dest, "png").unwrap();
 
         let img = image::open(&dest).unwrap();
@@ -407,22 +393,42 @@ mod tests {
     fn large_png_is_resized() {
         let dir = TempDir::new().unwrap();
         let src = write_png(dir.path(), "big.png", 4000, 2000);
-        let dest = dir.path().join("out.png");
+        let dest = dir.path().join("out.jpg");
         resize_and_copy(&src, &dest, "png").unwrap();
         let img = image::open(&dest).unwrap();
         assert_eq!(img.width(), MAX_DIM);
     }
 
-    // ── format preservation ──────────────────────────────────────────────────
+    // ── format conversion ────────────────────────────────────────────────────
 
     #[test]
-    fn png_is_saved_as_png() {
+    fn png_is_converted_to_jpeg() {
         let dir = TempDir::new().unwrap();
         let src = write_png(dir.path(), "icon.png", 100, 100);
-        let dest = dir.path().join("out.png");
+        let dest = dir.path().join("out.jpg");
         resize_and_copy(&src, &dest, "png").unwrap();
         let bytes = std::fs::read(&dest).unwrap();
-        assert_eq!(&bytes[0..4], b"\x89PNG");
+        assert_eq!(&bytes[0..2], &[0xFF, 0xD8]); // JPEG magic bytes
+    }
+
+    #[test]
+    fn transparent_png_composites_onto_white() {
+        // write_png builds an all-zero RGBA buffer: fully transparent, with
+        // (0,0,0) underneath. Naively dropping alpha (image's default
+        // to_rgb8() conversion) would keep that raw black instead of showing
+        // through to a sensible background — verify we composite onto white.
+        let dir = TempDir::new().unwrap();
+        let src = write_png(dir.path(), "transparent.png", 50, 50);
+        let dest = dir.path().join("out.jpg");
+        resize_and_copy(&src, &dest, "png").unwrap();
+
+        let img = image::open(&dest).unwrap().to_rgb8();
+        let pixel = img.get_pixel(25, 25);
+        assert!(
+            pixel.0.iter().all(|&c| c > 200),
+            "expected a near-white pixel after compositing, got {:?}",
+            pixel.0
+        );
     }
 
     #[test]
@@ -492,10 +498,10 @@ mod tests {
     }
 
     #[test]
-    fn output_ext_maps_correctly() {
+    fn output_ext_always_jpg() {
         assert_eq!(output_ext("jpg"), "jpg");
         assert_eq!(output_ext("jpeg"), "jpg");
-        assert_eq!(output_ext("png"), "png");
+        assert_eq!(output_ext("png"), "jpg");
         assert_eq!(output_ext("svg"), "jpg");
         assert_eq!(output_ext("gif"), "jpg");
         assert_eq!(output_ext("webp"), "jpg");
@@ -558,25 +564,6 @@ mod tests {
         let src = write_jpeg(dir.path(), "test.jpg", 400, 300);
         let img = image::open(&src).unwrap();
         let bytes = encode_jpeg_under_limit(&img, MAX_OUTPUT_BYTES).unwrap();
-        assert!(bytes.len() <= MAX_OUTPUT_BYTES);
-    }
-
-    #[test]
-    fn encode_png_over_limit_errors() {
-        let dir = TempDir::new().unwrap();
-        let src = write_png(dir.path(), "test.png", 100, 100);
-        let img = image::open(&src).unwrap();
-        let err = encode_png_checked(&img, 1).unwrap_err();
-        assert!(matches!(err, InkwellError::Validation(_)));
-        assert!(err.to_string().contains("PNG"));
-    }
-
-    #[test]
-    fn encode_png_within_limit_succeeds() {
-        let dir = TempDir::new().unwrap();
-        let src = write_png(dir.path(), "test.png", 100, 100);
-        let img = image::open(&src).unwrap();
-        let bytes = encode_png_checked(&img, MAX_OUTPUT_BYTES).unwrap();
         assert!(bytes.len() <= MAX_OUTPUT_BYTES);
     }
 }
