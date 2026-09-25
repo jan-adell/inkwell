@@ -157,5 +157,16 @@ export interface Relation {
   sort_order: number;
   created_at: string;
   deleted_at: string | null;
+export interface DocumentWordCount {
+  id: string;
+  title: string;
+  word_count: number;
+}
+
+export interface ProjectStats {
+  entity_count: number;
+  document_count: number;
+  total_word_count: number;
+  documents: DocumentWordCount[];
 }
 
