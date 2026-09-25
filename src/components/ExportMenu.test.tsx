@@ -1,39 +1,47 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { ExportMenu } from "./DocumentEditor";
+import { ExportMenu } from "./ExportMenu";
+
+const OPTIONS = [
+  { id: "inkwell", label: "Inkwell Project (.inkwell)" },
+  { id: "txt", label: "Plain Text (.txt)" },
+  { id: "pdf", label: "PDF (.pdf)" },
+  { id: "epub", label: "EPUB (.epub)" },
+];
 
 describe("ExportMenu", () => {
-  it("does not show format options until opened", () => {
-    render(<ExportMenu onExport={vi.fn()} exportingFormat={null} />);
+  it("does not show options until opened", () => {
+    render(<ExportMenu options={OPTIONS} onSelect={vi.fn()} title="Export project" />);
     expect(screen.queryByText("Plain Text (.txt)")).not.toBeInTheDocument();
   });
 
-  it("shows txt, pdf, and epub options when opened", async () => {
+  it("shows every option when opened", async () => {
     const user = userEvent.setup();
-    render(<ExportMenu onExport={vi.fn()} exportingFormat={null} />);
+    render(<ExportMenu options={OPTIONS} onSelect={vi.fn()} title="Export project" />);
 
-    await user.click(screen.getByTitle("Export book"));
+    await user.click(screen.getByTitle("Export project"));
 
+    expect(screen.getByText("Inkwell Project (.inkwell)")).toBeInTheDocument();
     expect(screen.getByText("Plain Text (.txt)")).toBeInTheDocument();
     expect(screen.getByText("PDF (.pdf)")).toBeInTheDocument();
     expect(screen.getByText("EPUB (.epub)")).toBeInTheDocument();
   });
 
-  it("calls onExport with the chosen format and closes the menu", async () => {
+  it("calls onSelect with the chosen option id and closes the menu", async () => {
     const user = userEvent.setup();
-    const onExport = vi.fn();
-    render(<ExportMenu onExport={onExport} exportingFormat={null} />);
+    const onSelect = vi.fn();
+    render(<ExportMenu options={OPTIONS} onSelect={onSelect} title="Export project" />);
 
-    await user.click(screen.getByTitle("Export book"));
+    await user.click(screen.getByTitle("Export project"));
     await user.click(screen.getByText("EPUB (.epub)"));
 
-    expect(onExport).toHaveBeenCalledWith("epub");
+    expect(onSelect).toHaveBeenCalledWith("epub");
     expect(screen.queryByText("Plain Text (.txt)")).not.toBeInTheDocument();
   });
 
-  it("disables the export button while a format is exporting", () => {
-    render(<ExportMenu onExport={vi.fn()} exportingFormat="pdf" />);
-    expect(screen.getByTitle("Export book")).toBeDisabled();
+  it("disables the trigger button while disabled is true", () => {
+    render(<ExportMenu options={OPTIONS} onSelect={vi.fn()} disabled title="Export project" />);
+    expect(screen.getByTitle("Export project")).toBeDisabled();
   });
 });
