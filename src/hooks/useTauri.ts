@@ -29,7 +29,7 @@ export async function invokeUpdateEntityFolder(id: string, req: { name?: string;
 export async function invokeDeleteEntityFolder(id: string): Promise<void> { return invoke("delete_entity_folder", { id }); }
 
 export async function invokeListFieldDefinitions(entityTypeId: string): Promise<FieldDefinition[]> { return invoke<FieldDefinition[]>("list_field_definitions", { entityTypeId }); }
-export async function invokeCreateFieldDefinition(req: { entity_type_id: string; name: string; label: string; field_type: string; sort_order?: number }): Promise<FieldDefinition> { return invoke<FieldDefinition>("create_field_definition", { req }); }
+export async function invokeCreateFieldDefinition(req: { entity_type_id: string; name: string; label: string; field_type: string; options?: string; sort_order?: number }): Promise<FieldDefinition> { return invoke<FieldDefinition>("create_field_definition", { req }); }
 export async function invokeDeleteFieldDefinition(id: string): Promise<void> { return invoke("delete_field_definition", { id }); }
 
 export async function invokeSetFieldValue(req: { entity_id: string; field_def_id: string; value: { type: string; value: unknown } }): Promise<FieldValue> { return invoke<FieldValue>("set_field_value", { req }); }
@@ -39,5 +39,6 @@ export async function invokeReadDocumentContent(documentId: string): Promise<str
 export async function invokeWriteEntityNotes(entityId: string, notesJson: string, notesText: string): Promise<void> { return invoke("write_entity_notes", { entityId, notesJson, notesText }); }
 export async function invokeReadEntityNotes(entityId: string): Promise<string | null> { return invoke<string | null>("read_entity_notes", { entityId }); }
 export async function invokeAddEntityAsset(entityId: string, sourcePath: string, label?: string): Promise<EntityAsset> { return invoke<EntityAsset>("add_entity_asset", { entityId, sourcePath, label: label ?? null }); }
+export async function invokeReadEntityAsset(assetId: string): Promise<string> { return invoke<string>("read_entity_asset", { assetId }); }
 export async function invokeListEntityAssets(entityId: string): Promise<EntityAsset[]> { return invoke<EntityAsset[]>("list_entity_assets", { entityId }); }
 export async function invokeDeleteEntityAsset(assetId: string): Promise<void> { return invoke("delete_entity_asset", { assetId }); }

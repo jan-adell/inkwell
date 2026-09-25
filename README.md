@@ -31,7 +31,8 @@ Inkwell is a local-first application for writers and worldbuilders. It brings to
 | Styling | Tailwind CSS |
 | Icons | Lucide React |
 | Global state | Zustand |
-| Editor | TipTap (planned — not yet implemented) |
+| Editor | [TipTap](https://tiptap.dev) (rich text, stored as JSON per document) |
+| Image processing | `image` + `resvg`/`tiny-skia` (pure Rust, no native deps) |
 
 ---
 
@@ -66,33 +67,43 @@ MyNovel.inkwell/
 ├── meta.json       # Schema version, project ID (ULID), project name
 ├── project.db      # SQLite database — all content and structure
 └── assets/
-    ├── characters/ # Character images
-    ├── maps/       # Map images
-    └── covers/     # Cover images
+    └── entities/
+        └── <entity-id>/
+            └── <ulid>.jpg   # or .png — one file per image property
 ```
 
 `meta.json` is read before opening the database, so the migration system can detect schema version mismatches before touching any data.
 
 All asset paths stored in the database are **relative to the project folder root** — never absolute. This is what makes projects portable across machines.
 
+**Entity images are reference thumbnails, not artwork storage.** Every image a writer attaches
+to an entity property is rasterized, resized to at most 200×200px, and re-encoded as JPEG
+(quality reduced automatically until it fits a 20KB budget) at upload time — SVGs and GIFs are
+rasterized to a static frame the same way. This keeps a project with hundreds of character/place
+images small; if you need to keep the original full-resolution artwork, save it elsewhere.
+
 ---
 
 ## Development status
 
-**Current phase: Foundation (Implementation 001)**
-
-- [x] Project structure
-- [x] Tauri 2 + React + TypeScript + Vite wired together
-- [x] Tailwind CSS with Inkwell design tokens
-- [x] SQLite connection with WAL mode and foreign key enforcement
-- [x] Migration system with SHA-256 checksums and transactional rollback
-- [x] Error handling (typed errors across Rust ↔ frontend boundary)
-- [x] `initialize_core` Tauri command
-- [ ] Initial schema migration (Implementation 002)
-- [ ] Entity types and entities
-- [ ] Documents and writing editor
-- [ ] Relations and backlinks
+- [x] Project structure, SQLite (WAL mode, FK enforcement), migration system
+      (SHA-256 checksummed, transactional rollback)
+- [x] Typed error handling across the Rust ↔ frontend boundary
+- [x] Documents: tree of folders/documents, rich-text editing via TipTap, word
+      count, status, synopsis
+- [x] Entity system: entity types, one-level entity folders, entities
+- [x] Custom entity properties (field definitions/values): text, long text,
+      number (with SI unit selector), date, image, entity reference,
+      entity-list reference
+- [x] Entity image properties: upload, replace, remove; every image is
+      rasterized, resized (≤200×200px) and re-encoded to JPEG (≤20KB) so a
+      project stays small regardless of the original photo's size or format
+- [x] Relations between entities (typed, directional)
+- [x] Project export/import (portable `.inkwell` folder as a zip)
+- [x] Cross-platform CI: Linux + Windows, Rust + frontend test suites, a
+      Windows visual smoke test, and a Windows build check
 - [ ] Full-text search (FTS5)
+- [ ] Timelines and maps
 - [ ] Inkwell Share (future, optional)
 
 ---

@@ -130,11 +130,7 @@ pub fn list_root_entities(conn: &Connection, project_id: &str) -> Result<Vec<Ent
     rows.map(|r| r.map_err(InkwellError::Database)).collect()
 }
 
-pub fn list_by_folder(
-    conn: &Connection,
-    project_id: &str,
-    folder_id: &str,
-) -> Result<Vec<Entity>> {
+pub fn list_by_folder(conn: &Connection, project_id: &str, folder_id: &str) -> Result<Vec<Entity>> {
     let mut stmt = conn.prepare(
         "SELECT id,project_id,entity_type_id,name,summary,cover_image,
                 visibility,sort_order,folder_id,created_at,updated_at,deleted_at
@@ -312,7 +308,8 @@ mod tests {
             "INSERT INTO entity_folders(id,project_id,name,sort_order,created_at)
              VALUES(?1,?2,'Heroes',0,'2026-01-01')",
             params![fid, pid],
-        ).unwrap();
+        )
+        .unwrap();
 
         let root = create(&conn, &pid, &make_entity(&etid, "Kael")).unwrap();
         let in_folder = create(
@@ -326,7 +323,8 @@ mod tests {
                 sort_order: None,
                 folder_id: Some(fid.clone()),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         let roots = list_root_entities(&conn, &pid).unwrap();
         assert_eq!(roots.len(), 1);

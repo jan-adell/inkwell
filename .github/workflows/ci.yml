@@ -47,7 +47,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workdir: src-tauri
+          workspaces: src-tauri
 
       - name: Check formatting
         run: cargo fmt --check
@@ -60,6 +60,39 @@ jobs:
       - name: Tests
         run: cargo test
         working-directory: src-tauri
+
+  # ── Windows: Rust unit tests ──────────────────────────────────────────────────
+  rust-windows:
+    name: Rust tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Tests
+        run: cargo test --lib
+        working-directory: src-tauri
+
+  # ── Windows: frontend unit tests ────────────────────────────────────────────
+  frontend-windows:
+    name: Frontend tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
 
   # ── Windows: visual theme smoke test ────────────────────────────────────────
   visual-windows:
@@ -105,7 +138,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workdir: src-tauri
+          workspaces: src-tauri
 
       - run: npm ci
       - name: Build (no bundle)

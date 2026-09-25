@@ -53,6 +53,33 @@ pub fn list(conn: &Connection, entity_id: &str) -> Result<Vec<EntityAsset>> {
     Ok(result)
 }
 
+/// Finds assets by their `label`, which for image-type field values holds the
+/// owning `field_definitions.id` (see EntityDetail's ImageField). Used to clean
+/// up orphaned files when a field definition is deleted.
+pub fn list_by_label(conn: &Connection, label: &str) -> Result<Vec<EntityAsset>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, entity_id, relative_path, label, sort_order, created_at
+         FROM entity_assets
+         WHERE label = ?1",
+    )?;
+    let rows = stmt.query_map(params![label], row_to_asset)?;
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row?);
+    }
+    Ok(result)
+}
+
+pub fn get_relative_path(conn: &Connection, asset_id: &str) -> Result<Option<String>> {
+    conn.query_row(
+        "SELECT relative_path FROM entity_assets WHERE id = ?1",
+        params![asset_id],
+        |r| r.get(0),
+    )
+    .optional()
+    .map_err(InkwellError::Database)
+}
+
 pub fn delete(conn: &Connection, asset_id: &str) -> Result<Option<String>> {
     let relative_path: Option<String> = conn
         .query_row(
@@ -146,6 +173,29 @@ mod tests {
         assert_eq!(list[0].relative_path, "b.jpg");
         assert_eq!(list[1].relative_path, "c.jpg");
         assert_eq!(list[2].relative_path, "a.jpg");
+    }
+
+    #[test]
+    fn list_by_label_finds_matching_assets_across_entities() {
+        let conn = test_conn();
+        let entity = seed_entity(&conn);
+
+        insert(&conn, &entity.id, "portrait.jpg", Some("fd-portrait"), 0).unwrap();
+        insert(&conn, &entity.id, "map.jpg", Some("fd-map"), 0).unwrap();
+
+        let found = list_by_label(&conn, "fd-portrait").unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].relative_path, "portrait.jpg");
+    }
+
+    #[test]
+    fn list_by_label_returns_empty_when_no_match() {
+        let conn = test_conn();
+        let entity = seed_entity(&conn);
+        insert(&conn, &entity.id, "portrait.jpg", Some("fd-portrait"), 0).unwrap();
+
+        let found = list_by_label(&conn, "fd-nonexistent").unwrap();
+        assert!(found.is_empty());
     }
 
     #[test]

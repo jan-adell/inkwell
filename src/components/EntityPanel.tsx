@@ -1,8 +1,13 @@
 import { useState, useEffect } from "react";
 import { Search, ExternalLink } from "lucide-react";
 import { useAppStore } from "../store/appStore";
-import { invokeGetFieldValues, invokeListFieldDefinitions } from "../hooks/useTauri";
-import type { Entity, EntityType, FieldDefinition, FieldValue } from "../types/core";
+import {
+  invokeGetFieldValues,
+  invokeListFieldDefinitions,
+  invokeListEntityAssets,
+  invokeReadEntityAsset,
+} from "../hooks/useTauri";
+import type { Entity, EntityAsset, EntityType, FieldDefinition, FieldValue } from "../types/core";
 
 function getTextValue(fv: FieldValue): string {
   if (fv.value_text !== null) return fv.value_text;
@@ -10,6 +15,29 @@ function getTextValue(fv: FieldValue): string {
   if (fv.value_number !== null) return String(fv.value_number);
   if (fv.value_boolean !== null) return fv.value_boolean ? "true" : "false";
   return "";
+}
+
+function getNumberUnit(fd: FieldDefinition): string {
+  if (fd.field_type !== "number" || !fd.options) return "";
+  try {
+    const parsed = JSON.parse(fd.options) as { unit?: string };
+    return parsed.unit ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function AssetThumb({ asset, label }: { asset: EntityAsset; label: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    invokeReadEntityAsset(asset.id)
+      .then(setUrl)
+      .catch(() => setUrl(null));
+  }, [asset.id]);
+
+  if (!url) return null;
+  return <img src={url} alt={label} className="w-full max-h-32 object-cover rounded" />;
 }
 
 function allEntitiesFromStore(): Entity[] {
@@ -33,6 +61,7 @@ export function EntityPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [fieldValues, setFieldValues] = useState<Map<string, FieldValue>>(new Map());
   const [allEntities, setAllEntities] = useState<Entity[]>([]);
+  const [assets, setAssets] = useState<EntityAsset[]>([]);
 
   useEffect(() => {
     setAllEntities(allEntitiesFromStore());
@@ -69,6 +98,13 @@ export function EntityPanel() {
         setFieldValues(m);
       })
       .catch(console.error);
+  }, [selectedEntityId]);
+
+  useEffect(() => {
+    if (!selectedEntityId) { setAssets([]); return; }
+    invokeListEntityAssets(selectedEntityId)
+      .then(setAssets)
+      .catch(() => setAssets([]));
   }, [selectedEntityId]);
 
   const filtered = searchQuery.trim()
@@ -144,20 +180,29 @@ export function EntityPanel() {
             )}
             {fieldDefs.length > 0 && (
               <div className="space-y-1 pt-1 border-t border-ink-border">
-                {fieldDefs
-                  .filter((fd) => fd.field_type !== "image")
-                  .map((fd) => {
-                    const fv = fieldValues.get(fd.id);
-                    if (!fv) return null;
-                    const val = getTextValue(fv);
-                    if (!val) return null;
+                {fieldDefs.map((fd) => {
+                  if (fd.field_type === "image") {
+                    const asset = assets.find((a) => a.label === fd.id);
+                    if (!asset) return null;
                     return (
-                      <div key={fd.id} className="flex gap-2 text-xs">
-                        <span className="text-ivory-ghost w-24 flex-shrink-0 truncate">{fd.label}</span>
-                        <span className="text-ivory-dim truncate">{val}</span>
+                      <div key={fd.id} className="space-y-1">
+                        <span className="text-xs text-ivory-ghost">{fd.label}</span>
+                        <AssetThumb asset={asset} label={fd.label} />
                       </div>
                     );
-                  })}
+                  }
+                  const fv = fieldValues.get(fd.id);
+                  if (!fv) return null;
+                  const val = getTextValue(fv);
+                  if (!val) return null;
+                  const unit = getNumberUnit(fd);
+                  return (
+                    <div key={fd.id} className="flex gap-2 text-xs">
+                      <span className="text-ivory-ghost w-24 flex-shrink-0 truncate">{fd.label}</span>
+                      <span className="text-ivory-dim truncate">{val}{unit && <span className="text-ivory-ghost ml-0.5">{unit}</span>}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

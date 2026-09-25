@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store/appStore";
 import {
   invokeGetFieldValues,
@@ -8,17 +9,49 @@ import {
   invokeDeleteFieldDefinition,
   invokeSetFieldValue,
   invokeUpdateEntity,
+  invokeAddEntityAsset,
+  invokeReadEntityAsset,
+  invokeDeleteEntityAsset,
+  invokeListEntityAssets,
 } from "../hooks/useTauri";
-import type { Entity, EntityType, FieldDefinition, FieldValue, FieldType } from "../types/core";
+import type { Entity, EntityAsset, EntityType, FieldDefinition, FieldValue, FieldType } from "../types/core";
 
 const ADDABLE_FIELD_TYPES: { label: string; type: FieldType }[] = [
   { label: "Short text", type: "text" },
   { label: "Long text", type: "textarea" },
+  { label: "Number", type: "number" },
   { label: "Date", type: "date" },
   { label: "Image", type: "image" },
   { label: "Entity", type: "entity_ref" },
   { label: "Entity List", type: "multiselect" },
 ];
+
+const SI_UNIT_GROUPS: { group: string; units: { symbol: string; name: string }[] }[] = [
+  { group: "Length", units: [{ symbol: "mm", name: "Millimetre" }, { symbol: "cm", name: "Centimetre" }, { symbol: "m", name: "Metre" }, { symbol: "km", name: "Kilometre" }] },
+  { group: "Mass", units: [{ symbol: "mg", name: "Milligram" }, { symbol: "g", name: "Gram" }, { symbol: "kg", name: "Kilogram" }, { symbol: "t", name: "Tonne" }] },
+  { group: "Time", units: [{ symbol: "ms", name: "Millisecond" }, { symbol: "s", name: "Second" }, { symbol: "min", name: "Minute" }, { symbol: "h", name: "Hour" }, { symbol: "d", name: "Day" }] },
+  { group: "Temperature", units: [{ symbol: "°C", name: "Celsius" }, { symbol: "K", name: "Kelvin" }] },
+  { group: "Area", units: [{ symbol: "cm²", name: "Square centimetre" }, { symbol: "m²", name: "Square metre" }, { symbol: "km²", name: "Square kilometre" }, { symbol: "ha", name: "Hectare" }] },
+  { group: "Volume", units: [{ symbol: "mL", name: "Millilitre" }, { symbol: "L", name: "Litre" }, { symbol: "m³", name: "Cubic metre" }] },
+  { group: "Speed", units: [{ symbol: "m/s", name: "Metres per second" }, { symbol: "km/h", name: "Kilometres per hour" }] },
+  { group: "Force", units: [{ symbol: "N", name: "Newton" }, { symbol: "kN", name: "Kilonewton" }] },
+  { group: "Energy", units: [{ symbol: "J", name: "Joule" }, { symbol: "kJ", name: "Kilojoule" }, { symbol: "kWh", name: "Kilowatt-hour" }, { symbol: "kcal", name: "Kilocalorie" }] },
+  { group: "Power", units: [{ symbol: "W", name: "Watt" }, { symbol: "kW", name: "Kilowatt" }, { symbol: "MW", name: "Megawatt" }] },
+  { group: "Pressure", units: [{ symbol: "Pa", name: "Pascal" }, { symbol: "kPa", name: "Kilopascal" }, { symbol: "bar", name: "Bar" }] },
+  { group: "Frequency", units: [{ symbol: "Hz", name: "Hertz" }, { symbol: "kHz", name: "Kilohertz" }, { symbol: "MHz", name: "Megahertz" }] },
+  { group: "Electric", units: [{ symbol: "A", name: "Ampere" }, { symbol: "V", name: "Volt" }, { symbol: "Ω", name: "Ohm" }, { symbol: "W", name: "Watt" }] },
+  { group: "Data", units: [{ symbol: "B", name: "Byte" }, { symbol: "KB", name: "Kilobyte" }, { symbol: "MB", name: "Megabyte" }, { symbol: "GB", name: "Gigabyte" }, { symbol: "TB", name: "Terabyte" }] },
+];
+
+function getNumberUnit(fieldDef: FieldDefinition): string {
+  if (fieldDef.field_type !== "number" || !fieldDef.options) return "";
+  try {
+    const parsed = JSON.parse(fieldDef.options) as { unit?: string };
+    return parsed.unit ?? "";
+  } catch {
+    return "";
+  }
+}
 
 function parseEntityTypeIdFromOptions(options: string | null | undefined): string | null {
   if (!options) return null;
@@ -61,21 +94,120 @@ function fieldValuePayload(fieldType: FieldType, raw: string): { type: string; v
   }
 }
 
-function PropertyRow({
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif", "svg"];
+
+function ImageField({
+  entity,
+  fieldDef,
+  asset,
+  onAssetChanged,
+}: {
+  entity: Entity;
+  fieldDef: FieldDefinition;
+  asset: EntityAsset | undefined;
+  onAssetChanged: () => void;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!asset) { setImageUrl(null); return; }
+    invokeReadEntityAsset(asset.id)
+      .then(setImageUrl)
+      .catch(() => setImageUrl(null));
+  }, [asset?.id]);
+
+  function messageFor(e: unknown): string {
+    return e instanceof Error ? e.message : typeof e === "string" ? e : "Something went wrong.";
+  }
+
+  async function pick() {
+    const selected = await open({ multiple: false, filters: [{ name: "Image", extensions: IMAGE_EXTENSIONS }] });
+    if (typeof selected !== "string") return;
+    setError(null);
+    try {
+      // Add the new asset before deleting the old one: if the upload fails (e.g.
+      // the image can't be processed), the existing image must be left intact
+      // rather than silently lost.
+      await invokeAddEntityAsset(entity.id, selected, fieldDef.id);
+      if (asset) await invokeDeleteEntityAsset(asset.id);
+      onAssetChanged();
+    } catch (e) {
+      setError(messageFor(e));
+    }
+  }
+
+  async function remove() {
+    if (!asset) return;
+    setError(null);
+    try {
+      await invokeDeleteEntityAsset(asset.id);
+      onAssetChanged();
+    } catch (e) {
+      setError(messageFor(e));
+    }
+  }
+
+  if (imageUrl) {
+    return (
+      <div className="w-fit">
+        <div className="relative group/img w-fit">
+          <img src={imageUrl} alt={fieldDef.label} className="h-24 object-cover rounded" />
+          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity">
+            <button
+              onClick={() => void pick()}
+              title="Replace image"
+              className="p-0.5 rounded bg-ink-deep/80 text-ivory-ghost hover:text-ivory transition-colors"
+            >
+              <Upload size={10} />
+            </button>
+            <button
+              onClick={() => void remove()}
+              title="Remove image"
+              className="p-0.5 rounded bg-ink-deep/80 text-ivory-ghost hover:text-crimson transition-colors"
+            >
+              <Trash2 size={10} />
+            </button>
+          </div>
+        </div>
+        {error && <p className="text-[10px] text-crimson mt-1 max-w-[9rem]">{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => void pick()}
+        className="text-xs text-ivory-ghost hover:text-ivory transition-colors"
+      >
+        Choose image…
+      </button>
+      {error && <p className="text-[10px] text-crimson mt-1 max-w-[9rem]">{error}</p>}
+    </div>
+  );
+}
+
+export function PropertyRow({
   fieldDef,
   fieldValue,
   entity,
+  asset,
   onDeleted,
   onSaved,
+  onAssetChanged,
 }: {
   fieldDef: FieldDefinition;
   fieldValue: FieldValue | undefined;
   entity: Entity;
+  asset?: EntityAsset;
   onDeleted: (id: string) => void;
   onSaved: (fv: FieldValue) => void;
+  onAssetChanged: () => void;
 }) {
   const { entityTypes } = useAppStore();
   const [draft, setDraft] = useState(fieldValue ? getTextValue(fieldValue) : "");
+  const unit = getNumberUnit(fieldDef);
 
   const entityTypeId = parseEntityTypeIdFromOptions(fieldDef.options);
   const configuredEntityType = entityTypeId
@@ -175,12 +307,12 @@ function PropertyRow({
       <span className="text-xs text-ivory-ghost pt-1.5 truncate">{fieldDef.label}</span>
       <div className="min-w-0">
         {fieldDef.field_type === "image" ? (
-          <button
-            type="button"
-            className="text-xs text-ivory-ghost border border-ink-border rounded px-2 py-1 hover:text-ivory hover:border-ink-muted"
-          >
-            Add image
-          </button>
+          <ImageField
+            entity={entity}
+            fieldDef={fieldDef}
+            asset={asset}
+            onAssetChanged={onAssetChanged}
+          />
         ) : fieldDef.field_type === "textarea" ? (
           <textarea
             value={draft}
@@ -194,13 +326,16 @@ function PropertyRow({
         ) : fieldDef.field_type === "multiselect" ? (
           renderEntityListSelect()
         ) : (
-          <input
-            type={fieldDef.field_type === "date" ? "date" : "text"}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => void save(draft)}
-            className="w-full bg-transparent text-ivory text-sm focus:outline-none"
-          />
+          <div className="flex items-baseline gap-1 min-w-0">
+            <input
+              type={fieldDef.field_type === "date" ? "date" : "text"}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => void save(draft)}
+              className={`bg-transparent text-ivory text-sm focus:outline-none ${unit ? "w-20" : "min-w-0 w-full"}`}
+            />
+            {unit && <span className="text-xs text-ivory-ghost">{unit}</span>}
+          </div>
         )}
       </div>
       <button
@@ -225,6 +360,7 @@ function AddPropertyForm({
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [fieldType, setFieldType] = useState<FieldType | null>(null);
+  const [unit, setUnit] = useState("");
   const [entityTypeId, setEntityTypeId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -274,6 +410,8 @@ function AddPropertyForm({
 
       if (fieldType === "entity_ref" || fieldType === "multiselect") {
         payload.options = encodeEntityTypeOptions(entityTypeId);
+      } else if (fieldType === "number" && unit) {
+        payload.options = JSON.stringify({ unit });
       }
 
       const fd = await invokeCreateFieldDefinition(payload);
@@ -320,6 +458,7 @@ function AddPropertyForm({
             onClick={() => {
               setFieldType(opt.type);
               setError(null);
+              if (opt.type !== "number") setUnit("");
             }}
             className={`text-xs px-2 py-0.5 rounded transition-colors ${fieldType === opt.type ? "bg-gold/30 text-gold" : "bg-ink-muted text-ivory-ghost hover:text-ivory"}`}
           >
@@ -327,6 +466,27 @@ function AddPropertyForm({
           </button>
         ))}
       </div>
+      {fieldType === "number" && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-ivory-ghost">Unit</span>
+          <select
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            className="bg-ink-muted text-ivory text-xs px-1.5 py-0.5 rounded focus:outline-none"
+          >
+            <option value="">— none</option>
+            {SI_UNIT_GROUPS.map((group) => (
+              <optgroup key={group.group} label={group.group}>
+                {group.units.map((u) => (
+                  <option key={`${group.group}-${u.symbol}`} value={u.symbol}>
+                    {u.symbol} — {u.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+      )}
 
       {(fieldType === "entity_ref" || fieldType === "multiselect") && (
         <div className="space-y-1">
@@ -396,6 +556,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
   const { entityTypes, fieldDefinitionsByType, setFieldDefinitionsForType } = useAppStore();
   const [entity, setEntity] = useState<Entity | null>(() => findEntityInStore(entityId) ?? null);
   const [fieldValues, setFieldValues] = useState<Map<string, FieldValue>>(new Map());
+  const [assets, setAssets] = useState<EntityAsset[]>([]);
   const [nameDraft, setNameDraft] = useState(entity?.name ?? "");
   const [summaryDraft, setSummaryDraft] = useState(entity?.summary ?? "");
 
@@ -433,6 +594,14 @@ export function EntityDetail({ entityId }: { entityId: string }) {
         setFieldValues(m);
       })
       .catch(console.error);
+  }, [entityId]);
+
+  function loadAssets() {
+    invokeListEntityAssets(entityId).then(setAssets).catch(() => {});
+  }
+
+  useEffect(() => {
+    loadAssets();
   }, [entityId]);
 
   async function saveName() {
@@ -507,6 +676,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                 fieldDef={fd}
                 fieldValue={fieldValues.get(fd.id)}
                 entity={entity}
+                asset={assets.find((a) => a.label === fd.id)}
                 onDeleted={(id) => {
                   const current = fieldDefinitionsByType[entity.entity_type_id] ?? [];
                   setFieldDefinitionsForType(entity.entity_type_id, current.filter((f) => f.id !== id));
@@ -514,6 +684,7 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                 onSaved={(fv) => {
                   setFieldValues((prev) => new Map(prev).set(fv.field_def_id, fv));
                 }}
+                onAssetChanged={loadAssets}
               />
             ))}
           </>

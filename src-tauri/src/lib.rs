@@ -68,6 +68,7 @@ pub fn run() {
             commands::entities::read_entity_notes,
             // Entity assets
             commands::assets::add_entity_asset,
+            commands::assets::read_entity_asset,
             commands::assets::list_entity_assets,
             commands::assets::delete_entity_asset,
             // Projects

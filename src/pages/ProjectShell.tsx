@@ -101,15 +101,8 @@ function Inspector() {
 
   if (activeView === "worldbuilding") {
     return (
-      <aside className="flex flex-col h-full bg-ink-deep border-l border-ink-border w-64 flex-shrink-0 overflow-y-auto min-h-0">
-        {selectedEntityId ? (
-          <EntityDetail key={selectedEntityId} entityId={selectedEntityId} />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center p-4">
-            <Globe size={24} className="text-ivory-ghost opacity-30 mb-2" />
-            <p className="text-xs text-ivory-ghost">Select an entity to edit</p>
-          </div>
-        )}
+      <aside className="flex flex-col h-full bg-ink-deep border-l border-ink-border w-64 flex-shrink-0 overflow-hidden min-h-0">
+        <EntityPanel />
       </aside>
     );
   }
@@ -146,7 +139,24 @@ function Inspector() {
 }
 
 function MainArea() {
-  const { selectedDocumentId, rootDocuments, childrenMap } = useAppStore();
+  const { activeView, selectedDocumentId, selectedEntityId, rootDocuments, childrenMap } = useAppStore();
+
+  if (activeView === "worldbuilding") {
+    if (selectedEntityId) {
+      return (
+        <main className="flex-1 flex flex-col bg-ink-void">
+          <EntityDetail key={selectedEntityId} entityId={selectedEntityId} />
+        </main>
+      );
+    }
+    return (
+      <main className="flex-1 flex flex-col items-center justify-center bg-ink-void">
+        <Globe size={32} className="text-ivory-ghost opacity-20 mx-auto mb-3" />
+        <p className="text-sm text-ivory-ghost">Select an entity to view and edit its details.</p>
+      </main>
+    );
+  }
+
   const selectedDoc = [...rootDocuments, ...Object.values(childrenMap).flat()]
     .find((document) => document.id === selectedDocumentId);
 

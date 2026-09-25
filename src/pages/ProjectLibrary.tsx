@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BookOpen, Plus, FolderOpen, Clock, Trash2, Download } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store/appStore";
 import {
@@ -18,7 +19,12 @@ export function ProjectLibrary({ onOpenProject, onNewProject }: Props) {
   const { knownProjects, projectId, setKnownProjects, setProjectId, resetProjectState } =
     useAppStore();
 
+  const [appVersion, setAppVersion] = useState("");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {});
+  }, []);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -180,10 +186,13 @@ export function ProjectLibrary({ onOpenProject, onNewProject }: Props) {
       </main>
 
       {/* Footer */}
-      <footer className="px-10 py-4 border-t border-ink-border">
-        <p className="text-xs text-ivory-ghost font-mono text-center tracking-widest">
+      <footer className="px-10 py-4 border-t border-ink-border flex items-center justify-between">
+        <p className="text-xs text-ivory-ghost font-mono tracking-widest">
           LOCAL · PRIVATE · YOURS
         </p>
+        {appVersion && (
+          <p className="text-xs text-ivory-ghost font-mono">v{appVersion}</p>
+        )}
       </footer>
     </div>
   );
