@@ -38,7 +38,9 @@ pub fn create(
 
     let status = req.status.as_deref().unwrap_or("draft");
     if !VALID_STATUSES.contains(&status) {
-        return Err(InkwellError::Validation(format!("Invalid status '{status}'")));
+        return Err(InkwellError::Validation(format!(
+            "Invalid status '{status}'"
+        )));
     }
 
     if let Some(ref parent_id) = req.parent_id {
@@ -99,7 +101,8 @@ pub fn get(conn: &Connection, id: &str) -> Result<Document> {
 fn list(conn: &Connection, sql: &str, id: &str) -> Result<Vec<Document>> {
     let mut stmt = conn.prepare(sql)?;
     let rows = stmt.query_map(params![id], row_to_document)?;
-    rows.map(|row| row.map_err(InkwellError::Database)).collect()
+    rows.map(|row| row.map_err(InkwellError::Database))
+        .collect()
 }
 
 pub fn list_root(conn: &Connection, id: &str) -> Result<Vec<Document>> {
@@ -118,15 +121,13 @@ pub fn list_children(conn: &Connection, id: &str) -> Result<Vec<Document>> {
     )
 }
 
-pub fn update(
-    conn: &Connection,
-    id: &str,
-    req: &UpdateDocumentRequest,
-) -> Result<Document> {
+pub fn update(conn: &Connection, id: &str, req: &UpdateDocumentRequest) -> Result<Document> {
     let current = get(conn, id)?;
     if let Some(ref status) = req.status {
         if !VALID_STATUSES.contains(&status.as_str()) {
-            return Err(InkwellError::Validation(format!("Invalid status '{status}'")));
+            return Err(InkwellError::Validation(format!(
+                "Invalid status '{status}'"
+            )));
         }
     }
 
