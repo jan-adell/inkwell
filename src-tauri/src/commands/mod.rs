@@ -10,3 +10,4 @@ pub mod projects;
 pub mod projects_types;
 pub mod relation_types;
 pub mod relations;
+pub mod stats;

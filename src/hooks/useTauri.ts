@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Document, Entity, EntityAsset, EntityFolder, EntityType, FieldDefinition, FieldValue, InitResult, KnownProject, OpenProjectResult, Relation, RelationType } from "../types/core";
+import type { Document, Entity, EntityAsset, EntityFolder, EntityType, FieldDefinition, FieldValue, InitResult, KnownProject, OpenProjectResult, Relation, RelationType, ProjectStats } from "../types/core";
 
 export async function invokeInitializeCore(): Promise<InitResult> { return invoke<InitResult>("initialize_core"); }
 export async function invokeDeleteProject(projectId: string): Promise<void> { return invoke("delete_project", { projectId }); }
@@ -49,3 +49,4 @@ export async function invokeCreateRelation(projectId: string, req: { source_enti
 export async function invokeDeleteRelation(id: string): Promise<void> { return invoke("delete_relation", { id }); }
 export async function invokeListOutgoingRelations(entityId: string): Promise<Relation[]> { return invoke<Relation[]>("list_outgoing_relations", { entityId }); }
 export async function invokeListIncomingRelations(entityId: string): Promise<Relation[]> { return invoke<Relation[]>("list_incoming_relations", { entityId }); }
+export async function invokeGetProjectStats(projectId: string): Promise<ProjectStats> { return invoke<ProjectStats>("get_project_stats", { projectId }); }
