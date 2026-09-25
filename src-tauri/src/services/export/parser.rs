@@ -10,9 +10,15 @@ pub struct Run {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum Inline {
+    Text(Run),
+    LineBreak,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Block {
-    Paragraph(Vec<Run>),
-    Heading(u8, Vec<Run>),
+    Paragraph(Vec<Inline>),
+    Heading(u8, Vec<Inline>),
 }
 
 pub fn parse_blocks(content_json: &str) -> Result<Vec<Block>> {
@@ -26,32 +32,37 @@ pub fn parse_blocks(content_json: &str) -> Result<Vec<Block>> {
 }
 
 fn parse_block(node: &Value) -> Option<Block> {
-    let runs = parse_runs(node.get("content"));
+    let inlines = parse_inlines(node.get("content"));
     match node.get("type").and_then(Value::as_str)? {
-        "paragraph" => Some(Block::Paragraph(runs)),
+        "paragraph" => Some(Block::Paragraph(inlines)),
         "heading" => {
             let level = node
                 .get("attrs")
                 .and_then(|attrs| attrs.get("level"))
                 .and_then(Value::as_u64)
                 .unwrap_or(1) as u8;
-            Some(Block::Heading(level, runs))
+            Some(Block::Heading(level, inlines))
         }
         _ => None,
     }
 }
 
-fn parse_runs(content: Option<&Value>) -> Vec<Run> {
+fn parse_inlines(content: Option<&Value>) -> Vec<Inline> {
     content
         .and_then(Value::as_array)
-        .map(|nodes| nodes.iter().filter_map(parse_run).collect())
+        .map(|nodes| nodes.iter().filter_map(parse_inline).collect())
         .unwrap_or_default()
 }
 
-fn parse_run(node: &Value) -> Option<Run> {
-    if node.get("type").and_then(Value::as_str)? != "text" {
-        return None;
+fn parse_inline(node: &Value) -> Option<Inline> {
+    match node.get("type").and_then(Value::as_str)? {
+        "text" => parse_run(node).map(Inline::Text),
+        "hardBreak" => Some(Inline::LineBreak),
+        _ => None,
     }
+}
+
+fn parse_run(node: &Value) -> Option<Run> {
     let text = node.get("text").and_then(Value::as_str)?.to_string();
     let marks = node.get("marks").and_then(Value::as_array);
     let has_mark = |name: &str| {
@@ -74,6 +85,14 @@ fn parse_run(node: &Value) -> Option<Run> {
 mod tests {
     use super::*;
 
+    fn text(s: &str) -> Inline {
+        Inline::Text(Run {
+            text: s.into(),
+            bold: false,
+            italic: false,
+        })
+    }
+
     #[test]
     fn empty_doc_has_no_blocks() {
         let blocks = parse_blocks(r#"{"type":"doc","content":[]}"#).unwrap();
@@ -84,14 +103,7 @@ mod tests {
     fn plain_paragraph() {
         let json = r#"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Hello"}]}]}"#;
         let blocks = parse_blocks(json).unwrap();
-        assert_eq!(
-            blocks,
-            vec![Block::Paragraph(vec![Run {
-                text: "Hello".into(),
-                bold: false,
-                italic: false,
-            }])]
-        );
+        assert_eq!(blocks, vec![Block::Paragraph(vec![text("Hello")])]);
     }
 
     #[test]
@@ -105,21 +117,21 @@ mod tests {
         assert_eq!(
             blocks,
             vec![Block::Paragraph(vec![
-                Run {
+                Inline::Text(Run {
                     text: "Bold".into(),
                     bold: true,
                     italic: false
-                },
-                Run {
+                }),
+                Inline::Text(Run {
                     text: "Italic".into(),
                     bold: false,
                     italic: true
-                },
-                Run {
+                }),
+                Inline::Text(Run {
                     text: "Both".into(),
                     bold: true,
                     italic: true
-                },
+                }),
             ])]
         );
     }
@@ -134,22 +146,8 @@ mod tests {
         assert_eq!(
             blocks,
             vec![
-                Block::Heading(
-                    1,
-                    vec![Run {
-                        text: "Chapter One".into(),
-                        bold: false,
-                        italic: false
-                    }]
-                ),
-                Block::Heading(
-                    2,
-                    vec![Run {
-                        text: "Scene break".into(),
-                        bold: false,
-                        italic: false
-                    }]
-                ),
+                Block::Heading(1, vec![text("Chapter One")]),
+                Block::Heading(2, vec![text("Scene break")]),
             ]
         );
     }
@@ -161,13 +159,24 @@ mod tests {
             {"type":"horizontalRule"}
         ]}"#;
         let blocks = parse_blocks(json).unwrap();
+        assert_eq!(blocks, vec![Block::Paragraph(vec![text("Kept")])]);
+    }
+
+    #[test]
+    fn hard_break_becomes_a_line_break_inline() {
+        let json = r#"{"type":"doc","content":[{"type":"paragraph","content":[
+            {"type":"text","text":"First line"},
+            {"type":"hardBreak"},
+            {"type":"text","text":"Second line"}
+        ]}]}"#;
+        let blocks = parse_blocks(json).unwrap();
         assert_eq!(
             blocks,
-            vec![Block::Paragraph(vec![Run {
-                text: "Kept".into(),
-                bold: false,
-                italic: false
-            }])]
+            vec![Block::Paragraph(vec![
+                text("First line"),
+                Inline::LineBreak,
+                text("Second line"),
+            ])]
         );
     }
 }
