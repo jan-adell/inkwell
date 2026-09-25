@@ -157,6 +157,8 @@ export interface Relation {
   sort_order: number;
   created_at: string;
   deleted_at: string | null;
+}
+
 export interface DocumentWordCount {
   id: string;
   title: string;
