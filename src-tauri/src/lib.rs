@@ -63,6 +63,7 @@ pub fn run() {
             commands::documents::delete_document,
             commands::documents::write_document_content,
             commands::documents::read_document_content,
+            commands::export::export_book,
             // Entities — notes
             commands::entities::write_entity_notes,
             commands::entities::read_entity_notes,
