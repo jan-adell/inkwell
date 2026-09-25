@@ -5,10 +5,29 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store/appStore";
 import {
   invokeDeleteProject,
+  invokeExportBook,
   invokeExportProject,
   invokeListKnownProjects,
+  type ExportFormat,
 } from "../hooks/useTauri";
 import type { KnownProject } from "../types/core";
+import { ExportMenu } from "../components/ExportMenu";
+
+type ExportChoice = "inkwell" | ExportFormat;
+
+const EXPORT_OPTIONS: { id: ExportChoice; label: string }[] = [
+  { id: "inkwell", label: "Inkwell Project (.inkwell)" },
+  { id: "txt", label: "Plain Text (.txt)" },
+  { id: "pdf", label: "PDF (.pdf)" },
+  { id: "epub", label: "EPUB (.epub)" },
+];
+
+const EXPORT_FILTERS: Record<ExportChoice, { name: string; extensions: string[] }> = {
+  inkwell: { name: "Inkwell Project", extensions: ["inkwell"] },
+  txt: { name: "Plain Text", extensions: ["txt"] },
+  pdf: { name: "PDF Document", extensions: ["pdf"] },
+  epub: { name: "EPUB Book", extensions: ["epub"] },
+};
 
 interface Props {
   onOpenProject: (project: KnownProject) => void;
@@ -29,17 +48,21 @@ export function ProjectLibrary({ onOpenProject, onNewProject }: Props) {
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  async function handleExport(project: KnownProject) {
+  async function handleExport(project: KnownProject, choice: ExportChoice) {
     const dest = await save({
-      defaultPath: `${project.name}.inkwell`,
-      filters: [{ name: "Inkwell Project", extensions: ["inkwell"] }],
+      defaultPath: `${project.name}.${choice}`,
+      filters: [EXPORT_FILTERS[choice]],
     });
     if (!dest) return;
 
     setExportingId(project.project_id);
     setActionError(null);
     try {
-      await invokeExportProject(project.project_id, dest);
+      if (choice === "inkwell") {
+        await invokeExportProject(project.project_id, dest);
+      } else {
+        await invokeExportBook(project.project_id, choice, dest);
+      }
     } catch (e) {
       setActionError(
         e instanceof Error ? e.message : typeof e === "string" ? e : "Export failed.",
@@ -161,14 +184,13 @@ export function ProjectLibrary({ onOpenProject, onNewProject }: Props) {
                     </div>
                   ) : (
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                      <button
-                        onClick={() => handleExport(project)}
+                      <ExportMenu
+                        options={EXPORT_OPTIONS}
+                        onSelect={(choice) => handleExport(project, choice)}
                         disabled={exportingId === project.project_id}
                         title="Export project"
-                        className="p-2 rounded text-ivory-ghost hover:text-gold hover:bg-gold/10 transition-colors disabled:opacity-40"
-                      >
-                        <Download size={14} />
-                      </button>
+                        buttonClassName="p-2 rounded text-ivory-ghost hover:text-gold hover:bg-gold/10 transition-colors disabled:opacity-40"
+                      />
                       <button
                         onClick={() => { setActionError(null); setConfirmingId(project.project_id); }}
                         title="Delete project"
