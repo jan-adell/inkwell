@@ -132,3 +132,30 @@ export interface EntityAsset {
   created_at: string;
 }
 
+export interface RelationType {
+  id: string;
+  project_id: string;
+  name: string;
+  label: string;
+  inverse_name: string | null;
+  inverse_label: string | null;
+  allowed_source_types: string | null;
+  allowed_target_types: string | null;
+  color: string | null;
+  is_system: boolean;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+export interface Relation {
+  id: string;
+  project_id: string;
+  source_entity_id: string;
+  relation_type_id: string;
+  target_entity_id: string;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+  deleted_at: string | null;
+}
+

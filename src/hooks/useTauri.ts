@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Document, Entity, EntityAsset, EntityFolder, EntityType, FieldDefinition, FieldValue, InitResult, KnownProject, OpenProjectResult } from "../types/core";
+import type { Document, Entity, EntityAsset, EntityFolder, EntityType, FieldDefinition, FieldValue, InitResult, KnownProject, OpenProjectResult, Relation, RelationType } from "../types/core";
 
 export async function invokeInitializeCore(): Promise<InitResult> { return invoke<InitResult>("initialize_core"); }
 export async function invokeDeleteProject(projectId: string): Promise<void> { return invoke("delete_project", { projectId }); }
@@ -42,3 +42,10 @@ export async function invokeAddEntityAsset(entityId: string, sourcePath: string,
 export async function invokeReadEntityAsset(assetId: string): Promise<string> { return invoke<string>("read_entity_asset", { assetId }); }
 export async function invokeListEntityAssets(entityId: string): Promise<EntityAsset[]> { return invoke<EntityAsset[]>("list_entity_assets", { entityId }); }
 export async function invokeDeleteEntityAsset(assetId: string): Promise<void> { return invoke("delete_entity_asset", { assetId }); }
+
+export async function invokeCreateRelationType(projectId: string, req: { name: string; label: string; inverse_name?: string; inverse_label?: string; allowed_source_types?: string; allowed_target_types?: string; color?: string }): Promise<RelationType> { return invoke<RelationType>("create_relation_type", { projectId, req }); }
+export async function invokeListRelationTypes(projectId: string): Promise<RelationType[]> { return invoke<RelationType[]>("list_relation_types", { projectId }); }
+export async function invokeCreateRelation(projectId: string, req: { source_entity_id: string; relation_type_id: string; target_entity_id: string; notes?: string; sort_order?: number }): Promise<Relation> { return invoke<Relation>("create_relation", { projectId, req }); }
+export async function invokeDeleteRelation(id: string): Promise<void> { return invoke("delete_relation", { id }); }
+export async function invokeListOutgoingRelations(entityId: string): Promise<Relation[]> { return invoke<Relation[]>("list_outgoing_relations", { entityId }); }
+export async function invokeListIncomingRelations(entityId: string): Promise<Relation[]> { return invoke<Relation[]>("list_incoming_relations", { entityId }); }

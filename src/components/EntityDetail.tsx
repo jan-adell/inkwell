@@ -15,6 +15,7 @@ import {
   invokeListEntityAssets,
 } from "../hooks/useTauri";
 import type { Entity, EntityAsset, EntityType, FieldDefinition, FieldValue, FieldType } from "../types/core";
+import { EntityRelationsSection } from "./EntityRelations";
 
 const ADDABLE_FIELD_TYPES: { label: string; type: FieldType }[] = [
   { label: "Short text", type: "text" },
@@ -697,6 +698,8 @@ export function EntityDetail({ entityId }: { entityId: string }) {
             setFieldDefinitionsForType(entity.entity_type_id, [...current, fd]);
           }}
         />
+
+        <EntityRelationsSection entity={entity} />
       </div>
     </div>
   );
