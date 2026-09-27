@@ -42,9 +42,9 @@ describe("AppearanceSettings — typography style", () => {
     const user = userEvent.setup();
     render(<AppearanceSettings />);
 
-    expect(screen.getByRole("button", { name: "Modern Sans (Inter)" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Modern Sans" })).toHaveAttribute("aria-current", "true");
 
-    await user.click(screen.getByRole("button", { name: "Monospace (JetBrains)" }));
+    await user.click(screen.getByRole("button", { name: "Monospace" }));
 
     expect(useAppearanceStore.getState().font).toBe("mono");
   });

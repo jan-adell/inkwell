@@ -19,9 +19,9 @@ const ACCENT_OPTIONS: { id: AccentColor; label: string }[] = [
 ];
 
 const FONT_OPTIONS: { id: TypographyStyle; label: string }[] = [
-  { id: "serif", label: "Editorial Serif (Playfair)" },
-  { id: "sans", label: "Modern Sans (Inter)" },
-  { id: "mono", label: "Monospace (JetBrains)" },
+  { id: "serif", label: "Editorial Serif" },
+  { id: "sans", label: "Modern Sans" },
+  { id: "mono", label: "Monospace" },
 ];
 
 export function AppearanceSettings() {
