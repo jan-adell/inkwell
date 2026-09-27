@@ -125,11 +125,7 @@ fn apply_migration(conn: &mut Connection, migration: &Migration) -> Result<()> {
     let checksum = sha256_hex(migration.sql);
     let now = chrono::Utc::now().to_rfc3339();
 
-    // Disable foreign key constraints for the migration. SQLite ignores PRAGMA
-    // foreign_keys once a transaction is open, so we must disable it before
-    // beginning the transaction. This is required when migrations rebuild tables
-    // that other tables reference by FK (e.g., table-rebuild patterns).
-    conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+    disable_foreign_keys(conn)?;
 
     // Use a savepoint so we can roll back just this migration
     // without affecting any prior work in the connection.
@@ -158,9 +154,18 @@ fn apply_migration(conn: &mut Connection, migration: &Migration) -> Result<()> {
 
     tx.commit()?;
 
-    // Re-enable foreign key constraints after the migration succeeds.
-    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+    enable_foreign_keys(conn)?;
 
+    Ok(())
+}
+
+fn disable_foreign_keys(conn: &Connection) -> Result<()> {
+    conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+    Ok(())
+}
+
+fn enable_foreign_keys(conn: &Connection) -> Result<()> {
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
     Ok(())
 }
 
@@ -319,7 +324,6 @@ mod tests {
         run_pending_migrations(&mut conn).unwrap();
         let (_, _, eid) = seed(&conn);
 
-        // Create a second entity
         let eid2 = "e2".to_string();
         conn.execute(
             "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
@@ -333,14 +337,12 @@ mod tests {
             [&eid],
         ).unwrap();
 
-        // Same name on a different entity is fine.
         conn.execute(
             "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
              VALUES('fd2',?1,'nickname','Nickname','text',0,'private',0,'2026-01-01')",
             [&eid2],
         ).unwrap();
 
-        // Same name on the SAME entity again must fail.
         let dup = conn.execute(
             "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
              VALUES('fd3',?1,'nickname','Nickname 2','text',0,'private',0,'2026-01-01')",
@@ -349,22 +351,65 @@ mod tests {
         assert!(dup.is_err());
     }
 
+    type FieldDefinitionSnapshot = (
+        Option<String>,
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        i64,
+        String,
+        i64,
+        String,
+        Option<String>,
+    );
+
+    fn snapshot_field_definition(conn: &Connection, id: &str) -> FieldDefinitionSnapshot {
+        conn.query_row(
+            "SELECT entity_type_id,name,label,field_type,options,default_value,
+                    is_required,visibility,sort_order,created_at,deleted_at
+             FROM field_definitions WHERE id=?1",
+            [id],
+            |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                    r.get(7)?,
+                    r.get(8)?,
+                    r.get(9)?,
+                    r.get(10)?,
+                ))
+            },
+        )
+        .unwrap()
+    }
+
+    type FieldValueSnapshot = (String, String, Option<String>, String);
+
+    fn snapshot_field_value(conn: &Connection, id: &str) -> FieldValueSnapshot {
+        conn.query_row(
+            "SELECT entity_id,field_def_id,value_text,updated_at FROM field_values WHERE id=?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn migration_006_succeeds_with_field_values_fk_references() {
-        // Simulate an existing project database at schema version 5 (before
-        // migration 6 exists), already containing a field_definitions row and a
-        // field_values row that references it — exactly the population migration
-        // 6's table-rebuild must not break.
         let mut conn = test_conn();
         ensure_migrations_table(&conn).unwrap();
 
-        // Apply only migrations 1 through 5 directly, leaving migration 6 pending.
         for migration in all_migrations().into_iter().filter(|m| m.version <= 5) {
             apply_migration(&mut conn, &migration).unwrap();
         }
 
-        // Seed data using the pre-migration-6 schema: field_definitions.entity_type_id
-        // is still NOT NULL and there is no entity_id column yet.
         conn.execute(
             "INSERT INTO projects(id,name,created_at,updated_at) VALUES('p1','P','2026-01-01','2026-01-01')",
             [],
@@ -385,36 +430,56 @@ mod tests {
             [],
         ).unwrap();
         conn.execute(
+            "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,options,default_value,is_required,visibility,sort_order,created_at,deleted_at)
+             VALUES('fd-legacy-deleted','et1','eye_color','Eye Color','select','[\"Brown\",\"Blue\"]','Brown',1,'beta',3,'2026-01-02','2026-01-03')",
+            [],
+        ).unwrap();
+        conn.execute(
             "INSERT INTO field_values(id,entity_id,field_def_id,value_text,updated_at)
              VALUES('fv1','e1','fd-legacy','test','2026-01-01')",
             [],
         )
         .unwrap();
+        conn.execute(
+            "INSERT INTO field_values(id,entity_id,field_def_id,value_text,updated_at)
+             VALUES('fv2','e1','fd-legacy-deleted','Brown','2026-01-02')",
+            [],
+        )
+        .unwrap();
 
-        // Now apply the remaining pending migration (6). This must succeed, not
-        // fail with a FOREIGN KEY constraint error.
+        let fd_active_before = snapshot_field_definition(&conn, "fd-legacy");
+        let fd_deleted_before = snapshot_field_definition(&conn, "fd-legacy-deleted");
+        let fv1_before = snapshot_field_value(&conn, "fv1");
+        let fv2_before = snapshot_field_value(&conn, "fv2");
+
         run_pending_migrations(&mut conn).unwrap();
 
-        // The field_values row must survive untouched, still pointing at the same
-        // field_definitions row (which now also has entity_id = NULL, entity_type_id
-        // unchanged).
-        let fv_field_def_id: String = conn
+        assert_eq!(
+            snapshot_field_definition(&conn, "fd-legacy"),
+            fd_active_before
+        );
+        assert_eq!(
+            snapshot_field_definition(&conn, "fd-legacy-deleted"),
+            fd_deleted_before
+        );
+        assert_eq!(snapshot_field_value(&conn, "fv1"), fv1_before);
+        assert_eq!(snapshot_field_value(&conn, "fv2"), fv2_before);
+
+        let active_entity_id: Option<String> = conn
             .query_row(
-                "SELECT field_def_id FROM field_values WHERE id='fv1'",
+                "SELECT entity_id FROM field_definitions WHERE id='fd-legacy'",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(fv_field_def_id, "fd-legacy");
-
-        let (entity_type_id, entity_id): (Option<String>, Option<String>) = conn
+        let deleted_entity_id: Option<String> = conn
             .query_row(
-                "SELECT entity_type_id, entity_id FROM field_definitions WHERE id='fd-legacy'",
+                "SELECT entity_id FROM field_definitions WHERE id='fd-legacy-deleted'",
                 [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
+                |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(entity_type_id.as_deref(), Some("et1"));
-        assert_eq!(entity_id, None);
+        assert_eq!(active_entity_id, None);
+        assert_eq!(deleted_entity_id, None);
     }
 }

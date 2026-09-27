@@ -95,9 +95,6 @@ pub fn get(conn: &Connection, id: &str) -> Result<FieldDefinition> {
     })
 }
 
-/// Legacy read path: serves field_definitions rows created before properties
-/// became entity-scoped. Never written to by `create` — kept only so
-/// pre-existing rows keep displaying exactly as before.
 pub fn list_by_entity_type(
     conn: &Connection,
     entity_type_id: &str,

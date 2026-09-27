@@ -74,8 +74,14 @@ pub fn create(conn: &Connection, project_id: &str, req: &CreateEntityRequest) ->
     )?;
 
     let entity_type = entity_type_repo::get(conn, &req.entity_type_id)?;
+    let legacy_names: std::collections::HashSet<String> =
+        field_definition_repo::list_by_entity_type(conn, &req.entity_type_id)?
+            .into_iter()
+            .map(|f| f.name)
+            .collect();
     for (i, default_field) in default_properties::default_fields_for(&entity_type.name)
         .iter()
+        .filter(|f| !legacy_names.contains(f.name))
         .enumerate()
     {
         field_definition_repo::create(
@@ -406,7 +412,6 @@ mod tests {
         assert_eq!(aren_fields.len(), 6);
         assert_ne!(kael_fields[0].id, aren_fields[0].id);
 
-        // Deleting one entity's field must not affect the other's.
         field_definition_repo::delete(&conn, &kael_fields[0].id).unwrap();
         let kael_fields_after = field_definition_repo::list_by_entity(&conn, &kael.id).unwrap();
         let aren_fields_after = field_definition_repo::list_by_entity(&conn, &aren.id).unwrap();
@@ -449,5 +454,39 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn create_skips_catalog_fields_colliding_with_a_legacy_type_scoped_name() {
+        let conn = test_conn();
+        let pid = "01PROJ000000000000000000005".to_string();
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES(?1,'P','2026-01-01','2026-01-01')",
+            params![pid],
+        ).unwrap();
+        let etid = "01ETYPE00000000000000000006".to_string();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES(?1,?2,'Character',0,0,'2026-01-01','2026-01-01')",
+            params![etid, pid],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd-legacy-height',?1,'height','Height','number',0,'private',0,'2026-01-01')",
+            params![etid],
+        ).unwrap();
+
+        let entity = create(&conn, &pid, &make_entity(&etid, "Kael")).unwrap();
+
+        let fields = field_definition_repo::list_by_entity(&conn, &entity.id).unwrap();
+        let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+
+        assert!(!names.contains(&"height"));
+        assert!(names.contains(&"birth_date"));
+        assert!(names.contains(&"eye_color"));
+        assert!(names.contains(&"occupation"));
+        assert!(names.contains(&"personality"));
+        assert!(names.contains(&"alive"));
+        assert_eq!(fields.len(), 5);
     }
 }

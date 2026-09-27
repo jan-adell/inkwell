@@ -1,7 +1,3 @@
-//! Static, application-level catalog of default properties per recognized
-//! entity type name. Applied once, by `entity_repo::create`, at the moment
-//! an entity is created — never at type-creation time, never retroactively.
-
 pub struct DefaultField {
     pub name: &'static str,
     pub label: &'static str,

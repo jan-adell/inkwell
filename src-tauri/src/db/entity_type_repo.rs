@@ -116,12 +116,6 @@ pub fn update(conn: &Connection, id: &str, req: &UpdateEntityTypeRequest) -> Res
     get(conn, id)
 }
 
-/// Ensures every default entity type exists in the project, creating whichever
-/// ones (by name) are still missing. A type that already exists — regardless
-/// of how the project came to have it — is never modified. Safe to call on
-/// every project open, for any project. Creates entity_types rows only —
-/// properties are applied per-entity at entity-creation time instead
-/// (see `entity_repo::create`).
 pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
     let existing = list(conn, project_id)?;
     let existing_names: std::collections::HashSet<&str> =
@@ -186,6 +180,7 @@ pub fn delete(conn: &Connection, id: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::field_definition_repo;
     use crate::db::migrations::{ensure_migrations_table, run_pending_migrations};
 
     fn test_conn() -> Connection {
@@ -413,6 +408,11 @@ mod tests {
 
         let refetched = get(&conn, &character.id).unwrap();
         assert_eq!(refetched.id, character.id);
+        assert!(
+            field_definition_repo::list_by_entity_type(&conn, &character.id)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
