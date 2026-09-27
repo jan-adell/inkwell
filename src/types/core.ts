@@ -172,3 +172,13 @@ export interface ProjectStats {
   documents: DocumentWordCount[];
 }
 
+export type ThemeBackground = "ivory" | "light-blue" | "graphite" | "midnight" | "forest";
+export type AccentColor = "purple" | "blue" | "cyan" | "green" | "orange" | "amber";
+export type TypographyStyle = "serif" | "sans" | "mono";
+
+export interface AppearanceSettings {
+  theme: ThemeBackground;
+  accent: AccentColor;
+  font: TypographyStyle;
+}
+

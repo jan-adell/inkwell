@@ -25,4 +25,11 @@ describe("SettingsScreen", () => {
     await user.click(screen.getByRole("button", { name: /back/i }));
     expect(onBack).toHaveBeenCalledOnce();
   });
+
+  it("switches to the Appearance panel when its section is clicked", async () => {
+    const user = userEvent.setup();
+    render(<SettingsScreen onBack={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Appearance" }));
+    expect(screen.getByText("Theme Backgrounds")).toBeInTheDocument();
+  });
 });
