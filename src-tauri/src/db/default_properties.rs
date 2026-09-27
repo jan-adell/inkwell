@@ -2,7 +2,6 @@
 //! entity type name. Applied once, by `entity_repo::create`, at the moment
 //! an entity is created — never at type-creation time, never retroactively.
 
-#[allow(dead_code)]
 pub struct DefaultField {
     pub name: &'static str,
     pub label: &'static str,
@@ -11,7 +10,6 @@ pub struct DefaultField {
     pub default_value: Option<&'static str>,
 }
 
-#[allow(dead_code)]
 const fn field(name: &'static str, label: &'static str, field_type: &'static str) -> DefaultField {
     DefaultField {
         name,
@@ -22,7 +20,6 @@ const fn field(name: &'static str, label: &'static str, field_type: &'static str
     }
 }
 
-#[allow(dead_code)]
 const fn field_with_options(
     name: &'static str,
     label: &'static str,
@@ -38,7 +35,6 @@ const fn field_with_options(
     }
 }
 
-#[allow(dead_code)]
 const CHARACTER_FIELDS: &[DefaultField] = &[
     field("birth_date", "Birth Date", "date"),
     field_with_options("height", "Height", "number", r#"{"unit":"cm"}"#),
@@ -59,7 +55,6 @@ const CHARACTER_FIELDS: &[DefaultField] = &[
     },
 ];
 
-#[allow(dead_code)]
 const LOCATION_FIELDS: &[DefaultField] = &[
     field("description", "Description", "textarea"),
     field_with_options(
@@ -74,7 +69,6 @@ const LOCATION_FIELDS: &[DefaultField] = &[
     field("notable_landmark", "Notable Landmark", "text"),
 ];
 
-#[allow(dead_code)]
 const ITEM_FIELDS: &[DefaultField] = &[
     field("description", "Description", "textarea"),
     field("material", "Material", "text"),
@@ -89,7 +83,6 @@ const ITEM_FIELDS: &[DefaultField] = &[
     field("magical", "Magical", "boolean"),
 ];
 
-#[allow(dead_code)]
 const EVENT_FIELDS: &[DefaultField] = &[
     field("description", "Description", "textarea"),
     field("date", "Date", "date"),
@@ -104,7 +97,6 @@ const EVENT_FIELDS: &[DefaultField] = &[
     field("casualties", "Casualties", "number"),
 ];
 
-#[allow(dead_code)]
 const ORGANIZATION_FIELDS: &[DefaultField] = &[
     field("description", "Description", "textarea"),
     field("founded", "Founded", "date"),
@@ -119,7 +111,6 @@ const ORGANIZATION_FIELDS: &[DefaultField] = &[
     field("active", "Active", "boolean"),
 ];
 
-#[allow(dead_code)]
 pub fn default_fields_for(entity_type_name: &str) -> &'static [DefaultField] {
     match entity_type_name {
         "Character" => CHARACTER_FIELDS,

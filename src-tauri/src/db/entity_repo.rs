@@ -1,7 +1,9 @@
 use rusqlite::{params, Connection, OptionalExtension};
 
+use crate::db::{default_properties, entity_type_repo, field_definition_repo};
 use crate::error::{InkwellError, Result};
 use crate::models::entity::{CreateEntityRequest, Entity, UpdateEntityRequest};
+use crate::models::field_definition::CreateFieldDefinitionRequest;
 
 fn row_to_entity(row: &rusqlite::Row) -> rusqlite::Result<Entity> {
     Ok(Entity {
@@ -70,6 +72,27 @@ pub fn create(conn: &Connection, project_id: &str, req: &CreateEntityRequest) ->
             now
         ],
     )?;
+
+    let entity_type = entity_type_repo::get(conn, &req.entity_type_id)?;
+    for (i, default_field) in default_properties::default_fields_for(&entity_type.name)
+        .iter()
+        .enumerate()
+    {
+        field_definition_repo::create(
+            conn,
+            &CreateFieldDefinitionRequest {
+                entity_id: id.clone(),
+                name: default_field.name.to_string(),
+                label: default_field.label.to_string(),
+                field_type: default_field.field_type.to_string(),
+                options: default_field.options.map(|s| s.to_string()),
+                default_value: default_field.default_value.map(|s| s.to_string()),
+                is_required: None,
+                visibility: None,
+                sort_order: Some(i as i64),
+            },
+        )?;
+    }
 
     get(conn, &id)
 }
@@ -217,6 +240,7 @@ pub fn get_notes(conn: &Connection, entity_id: &str) -> Result<Option<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::field_definition_repo;
     use crate::db::migrations::{ensure_migrations_table, run_pending_migrations};
 
     fn test_conn() -> Connection {
@@ -333,5 +357,97 @@ mod tests {
         let folder_members = list_by_folder(&conn, &pid, &fid).unwrap();
         assert_eq!(folder_members.len(), 1);
         assert_eq!(folder_members[0].id, in_folder.id);
+    }
+
+    #[test]
+    fn create_applies_default_properties_for_a_recognized_type_name() {
+        let conn = test_conn();
+        let pid = "01PROJ000000000000000000002".to_string();
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES(?1,'P','2026-01-01','2026-01-01')",
+            params![pid],
+        ).unwrap();
+        let etid = "01ETYPE00000000000000000002".to_string();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES(?1,?2,'Character',0,0,'2026-01-01','2026-01-01')",
+            params![etid, pid],
+        ).unwrap();
+
+        let entity = create(&conn, &pid, &make_entity(&etid, "Kael")).unwrap();
+
+        let fields = field_definition_repo::list_by_entity(&conn, &entity.id).unwrap();
+        assert_eq!(fields.len(), 6);
+        assert_eq!(fields[0].name, "birth_date");
+        assert_eq!(fields[0].entity_id.as_deref(), Some(entity.id.as_str()));
+    }
+
+    #[test]
+    fn create_gives_two_entities_of_the_same_type_fully_independent_properties() {
+        let conn = test_conn();
+        let pid = "01PROJ000000000000000000003".to_string();
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES(?1,'P','2026-01-01','2026-01-01')",
+            params![pid],
+        ).unwrap();
+        let etid = "01ETYPE00000000000000000003".to_string();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES(?1,?2,'Character',0,0,'2026-01-01','2026-01-01')",
+            params![etid, pid],
+        ).unwrap();
+
+        let kael = create(&conn, &pid, &make_entity(&etid, "Kael")).unwrap();
+        let aren = create(&conn, &pid, &make_entity(&etid, "Aren")).unwrap();
+
+        let kael_fields = field_definition_repo::list_by_entity(&conn, &kael.id).unwrap();
+        let aren_fields = field_definition_repo::list_by_entity(&conn, &aren.id).unwrap();
+        assert_eq!(kael_fields.len(), 6);
+        assert_eq!(aren_fields.len(), 6);
+        assert_ne!(kael_fields[0].id, aren_fields[0].id);
+
+        // Deleting one entity's field must not affect the other's.
+        field_definition_repo::delete(&conn, &kael_fields[0].id).unwrap();
+        let kael_fields_after = field_definition_repo::list_by_entity(&conn, &kael.id).unwrap();
+        let aren_fields_after = field_definition_repo::list_by_entity(&conn, &aren.id).unwrap();
+        assert_eq!(kael_fields_after.len(), 5);
+        assert_eq!(aren_fields_after.len(), 6);
+    }
+
+    #[test]
+    fn create_gives_no_default_properties_for_unrecognized_or_blank_type_names() {
+        let conn = test_conn();
+        let pid = "01PROJ000000000000000000004".to_string();
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES(?1,'P','2026-01-01','2026-01-01')",
+            params![pid],
+        ).unwrap();
+        let entity_etid = "01ETYPE00000000000000000004".to_string();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES(?1,?2,'Entity',0,0,'2026-01-01','2026-01-01')",
+            params![entity_etid, pid],
+        ).unwrap();
+        let custom_etid = "01ETYPE00000000000000000005".to_string();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES(?1,?2,'MyCustomType',0,1,'2026-01-01','2026-01-01')",
+            params![custom_etid, pid],
+        ).unwrap();
+
+        let blank_entity = create(&conn, &pid, &make_entity(&entity_etid, "Something")).unwrap();
+        let custom_entity =
+            create(&conn, &pid, &make_entity(&custom_etid, "Something Else")).unwrap();
+
+        assert!(
+            field_definition_repo::list_by_entity(&conn, &blank_entity.id)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            field_definition_repo::list_by_entity(&conn, &custom_entity.id)
+                .unwrap()
+                .is_empty()
+        );
     }
 }
