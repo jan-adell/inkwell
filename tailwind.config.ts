@@ -33,7 +33,7 @@ export default {
         mono: ["ui-monospace", "SFMono-Regular", "Consolas", "monospace"],
       },
       backgroundImage: {
-        "ink-gradient": "radial-gradient(ellipse at top, #161820 0%, #0a0b0f 70%)",
+        "ink-gradient": "radial-gradient(ellipse at top, var(--color-elevated) 0%, var(--color-bg) 70%)",
       },
     },
   },
