@@ -343,27 +343,65 @@ mod tests {
 
     #[test]
     fn migration_006_succeeds_with_field_values_fk_references() {
+        // Simulate an existing project database at schema version 5 (before
+        // migration 6 exists), already containing a field_definitions row and a
+        // field_values row that references it — exactly the population migration
+        // 6's table-rebuild must not break.
         let mut conn = test_conn();
-        run_pending_migrations(&mut conn).unwrap();
+        ensure_migrations_table(&conn).unwrap();
 
-        let (_, etid, eid) = seed(&conn);
+        // Apply only migrations 1 through 5 directly, leaving migration 6 pending.
+        for migration in all_migrations().into_iter().filter(|m| m.version <= 5) {
+            apply_migration(&mut conn, &migration).unwrap();
+        }
 
-        let fd_id = seed_field_def(&conn, &etid, "type", "bio");
-
+        // Seed data using the pre-migration-6 schema: field_definitions.entity_type_id
+        // is still NOT NULL and there is no entity_id column yet.
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES('p1','P','2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES('et1','p1','Character',0,0,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
+             VALUES('e1','p1','et1','Kael','private',0,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd-legacy','et1','bio','Bio','text',0,'private',0,'2026-01-01')",
+            [],
+        ).unwrap();
         conn.execute(
             "INSERT INTO field_values(id,entity_id,field_def_id,value_text,updated_at)
-             VALUES('fv1',?1,?2,'test','2026-01-01')",
-            [&eid, &fd_id],
+             VALUES('fv1','e1','fd-legacy','test','2026-01-01')",
+            [],
         ).unwrap();
 
-        let fv_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM field_values WHERE field_def_id=?1", [&fd_id], |r| r.get(0))
-            .unwrap();
-        assert_eq!(fv_count, 1);
+        // Now apply the remaining pending migration (6). This must succeed, not
+        // fail with a FOREIGN KEY constraint error.
+        run_pending_migrations(&mut conn).unwrap();
 
-        let fv_id: String = conn
-            .query_row("SELECT id FROM field_values WHERE field_def_id=?1", [&fd_id], |r| r.get(0))
+        // The field_values row must survive untouched, still pointing at the same
+        // field_definitions row (which now also has entity_id = NULL, entity_type_id
+        // unchanged).
+        let fv_field_def_id: String = conn
+            .query_row("SELECT field_def_id FROM field_values WHERE id='fv1'", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(fv_id, "fv1");
+        assert_eq!(fv_field_def_id, "fd-legacy");
+
+        let (entity_type_id, entity_id): (Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT entity_type_id, entity_id FROM field_definitions WHERE id='fd-legacy'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(entity_type_id.as_deref(), Some("et1"));
+        assert_eq!(entity_id, None);
     }
 }
