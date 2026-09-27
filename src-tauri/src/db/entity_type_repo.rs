@@ -279,9 +279,6 @@ pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
         )?;
         next_sort_order += 1;
 
-        // Legacy: seed default fields directly at entity-type scope.
-        // Fields are now entity-scoped, so this inserts them directly rather than
-        // using create() which requires entity_id.
         for (j, default_field) in default_fields_for(name).iter().enumerate() {
             let fd_id = ulid::Ulid::new().to_string();
             let now = chrono::Utc::now().to_rfc3339();
@@ -289,7 +286,7 @@ pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
                 "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,
                     options,default_value,is_required,visibility,sort_order,created_at)
                  VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
-                rusqlite::params![
+                params![
                     fd_id,
                     entity_type.id.clone(),
                     default_field.name.to_string(),
@@ -490,9 +487,11 @@ mod tests {
         seed_defaults(&conn, &pid).unwrap();
         let types = list(&conn, &pid).unwrap();
         let entity_type = types.iter().find(|t| t.name == "Entity").unwrap();
-        assert!(field_definition_repo::list_by_entity_type(&conn, &entity_type.id)
-            .unwrap()
-            .is_empty());
+        assert!(
+            field_definition_repo::list_by_entity_type(&conn, &entity_type.id)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
@@ -613,9 +612,11 @@ mod tests {
         // The pre-existing Character type must be untouched: same row, still no fields.
         let refetched = get(&conn, &character.id).unwrap();
         assert_eq!(refetched.id, character.id);
-        assert!(field_definition_repo::list_by_entity_type(&conn, &character.id)
-            .unwrap()
-            .is_empty());
+        assert!(
+            field_definition_repo::list_by_entity_type(&conn, &character.id)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

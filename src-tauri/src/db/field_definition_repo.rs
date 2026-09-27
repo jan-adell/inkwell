@@ -98,7 +98,10 @@ pub fn get(conn: &Connection, id: &str) -> Result<FieldDefinition> {
 /// Legacy read path: serves field_definitions rows created before properties
 /// became entity-scoped. Never written to by `create` — kept only so
 /// pre-existing rows keep displaying exactly as before.
-pub fn list_by_entity_type(conn: &Connection, entity_type_id: &str) -> Result<Vec<FieldDefinition>> {
+pub fn list_by_entity_type(
+    conn: &Connection,
+    entity_type_id: &str,
+) -> Result<Vec<FieldDefinition>> {
     let mut stmt = conn.prepare(
         "SELECT id,entity_type_id,entity_id,name,label,field_type,options,default_value,
                 is_required,visibility,sort_order,created_at,deleted_at
@@ -110,6 +113,7 @@ pub fn list_by_entity_type(conn: &Connection, entity_type_id: &str) -> Result<Ve
     rows.map(|r| r.map_err(InkwellError::Database)).collect()
 }
 
+#[allow(dead_code)]
 pub fn list_by_entity(conn: &Connection, entity_id: &str) -> Result<Vec<FieldDefinition>> {
     let mut stmt = conn.prepare(
         "SELECT id,entity_type_id,entity_id,name,label,field_type,options,default_value,
