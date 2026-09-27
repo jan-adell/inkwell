@@ -38,7 +38,7 @@ pub async fn list_field_definitions(
         .db
         .lock()
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
-    field_definition_repo::list(&conn, &entity_type_id)
+    field_definition_repo::list_by_entity_type(&conn, &entity_type_id)
 }
 
 #[tauri::command]

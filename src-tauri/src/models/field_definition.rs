@@ -15,12 +15,17 @@ pub const VALID_FIELD_TYPES: &[&str] = &[
     "image",
 ];
 
-/// A custom field definition for an entity type.
-/// Maps to the `field_definitions` table.
+/// A custom property. Maps to the `field_definitions` table.
+///
+/// Exactly one of `entity_type_id` / `entity_id` is set on any row:
+/// `entity_type_id` only ever appears on rows created before properties
+/// became entity-scoped (kept working, never written to again);
+/// `entity_id` is set on every row created from now on.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldDefinition {
     pub id: String,
-    pub entity_type_id: String,
+    pub entity_type_id: Option<String>,
+    pub entity_id: Option<String>,
     pub name: String,
     pub label: String,
     pub field_type: String,
@@ -33,10 +38,10 @@ pub struct FieldDefinition {
     pub deleted_at: Option<String>,
 }
 
-/// Input for creating a field definition.
+/// Input for creating a field definition. Creation is always entity-scoped.
 #[derive(Debug, Deserialize)]
 pub struct CreateFieldDefinitionRequest {
-    pub entity_type_id: String,
+    pub entity_id: String,
     pub name: String,
     pub label: String,
     pub field_type: String,

@@ -1,9 +1,7 @@
 use rusqlite::{params, Connection};
 
-use crate::db::field_definition_repo;
 use crate::error::{InkwellError, Result};
 use crate::models::entity_type::{CreateEntityTypeRequest, EntityType, UpdateEntityTypeRequest};
-use crate::models::field_definition::CreateFieldDefinitionRequest;
 
 struct DefaultField {
     name: &'static str,
@@ -281,20 +279,29 @@ pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
         )?;
         next_sort_order += 1;
 
+        // Legacy: seed default fields directly at entity-type scope.
+        // Fields are now entity-scoped, so this inserts them directly rather than
+        // using create() which requires entity_id.
         for (j, default_field) in default_fields_for(name).iter().enumerate() {
-            field_definition_repo::create(
-                conn,
-                &CreateFieldDefinitionRequest {
-                    entity_type_id: entity_type.id.clone(),
-                    name: default_field.name.to_string(),
-                    label: default_field.label.to_string(),
-                    field_type: default_field.field_type.to_string(),
-                    options: default_field.options.map(|s| s.to_string()),
-                    default_value: default_field.default_value.map(|s| s.to_string()),
-                    is_required: None,
-                    visibility: None,
-                    sort_order: Some(j as i64),
-                },
+            let fd_id = ulid::Ulid::new().to_string();
+            let now = chrono::Utc::now().to_rfc3339();
+            conn.execute(
+                "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,
+                    options,default_value,is_required,visibility,sort_order,created_at)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+                rusqlite::params![
+                    fd_id,
+                    entity_type.id.clone(),
+                    default_field.name.to_string(),
+                    default_field.label.to_string(),
+                    default_field.field_type.to_string(),
+                    default_field.options.map(|s| s.to_string()),
+                    default_field.default_value.map(|s| s.to_string()),
+                    0i64,
+                    "private",
+                    j as i64,
+                    now
+                ],
             )?;
         }
     }
@@ -469,7 +476,7 @@ mod tests {
     }
 
     fn field_names_and_types(conn: &Connection, entity_type_id: &str) -> Vec<(String, String)> {
-        field_definition_repo::list(conn, entity_type_id)
+        field_definition_repo::list_by_entity_type(conn, entity_type_id)
             .unwrap()
             .into_iter()
             .map(|f| (f.name, f.field_type))
@@ -483,7 +490,7 @@ mod tests {
         seed_defaults(&conn, &pid).unwrap();
         let types = list(&conn, &pid).unwrap();
         let entity_type = types.iter().find(|t| t.name == "Entity").unwrap();
-        assert!(field_definition_repo::list(&conn, &entity_type.id)
+        assert!(field_definition_repo::list_by_entity_type(&conn, &entity_type.id)
             .unwrap()
             .is_empty());
     }
@@ -517,7 +524,7 @@ mod tests {
         let types = list(&conn, &pid).unwrap();
         for name in ["Location", "Item", "Event", "Organization"] {
             let et = types.iter().find(|t| t.name == name).unwrap();
-            let fields = field_definition_repo::list(&conn, &et.id).unwrap();
+            let fields = field_definition_repo::list_by_entity_type(&conn, &et.id).unwrap();
             assert_eq!(fields.len(), 6, "expected 6 fields for {name}");
         }
     }
@@ -606,7 +613,7 @@ mod tests {
         // The pre-existing Character type must be untouched: same row, still no fields.
         let refetched = get(&conn, &character.id).unwrap();
         assert_eq!(refetched.id, character.id);
-        assert!(field_definition_repo::list(&conn, &character.id)
+        assert!(field_definition_repo::list_by_entity_type(&conn, &character.id)
             .unwrap()
             .is_empty());
     }
