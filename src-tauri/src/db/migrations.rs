@@ -269,12 +269,20 @@ mod tests {
         let _fd_new = seed_field_def(&conn, &eid, "entity", "nickname");
 
         let legacy_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM field_definitions WHERE entity_type_id=?1", [&etid], |r| r.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM field_definitions WHERE entity_type_id=?1",
+                [&etid],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(legacy_count, 1);
 
         let new_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM field_definitions WHERE entity_id=?1", [&eid], |r| r.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM field_definitions WHERE entity_id=?1",
+                [&eid],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(new_count, 1);
     }
@@ -380,7 +388,8 @@ mod tests {
             "INSERT INTO field_values(id,entity_id,field_def_id,value_text,updated_at)
              VALUES('fv1','e1','fd-legacy','test','2026-01-01')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Now apply the remaining pending migration (6). This must succeed, not
         // fail with a FOREIGN KEY constraint error.
@@ -390,7 +399,11 @@ mod tests {
         // field_definitions row (which now also has entity_id = NULL, entity_type_id
         // unchanged).
         let fv_field_def_id: String = conn
-            .query_row("SELECT field_def_id FROM field_values WHERE id='fv1'", [], |r| r.get(0))
+            .query_row(
+                "SELECT field_def_id FROM field_values WHERE id='fv1'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(fv_field_def_id, "fd-legacy");
 
