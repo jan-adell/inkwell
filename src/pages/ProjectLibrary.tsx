@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookOpen, Plus, FolderOpen, Clock, Trash2, Download } from "lucide-react";
+import { BookOpen, Plus, FolderOpen, Clock, Trash2 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store/appStore";
