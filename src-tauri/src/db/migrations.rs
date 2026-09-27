@@ -45,6 +45,11 @@ pub fn all_migrations() -> Vec<Migration> {
             name: "relations_unique_active_only",
             sql: include_str!("migrations/005_relations_unique_active_only.sql"),
         },
+        Migration {
+            version: 6,
+            name: "entity_scoped_field_definitions",
+            sql: include_str!("migrations/006_entity_scoped_field_definitions.sql"),
+        },
     ]
 }
 
@@ -201,5 +206,131 @@ mod tests {
         let b = sha256_hex("SELECT 1;");
         assert_eq!(a, b);
         assert_ne!(a, sha256_hex("SELECT 2;"));
+    }
+
+    #[test]
+    fn migration_006_preserves_legacy_rows_and_allows_entity_scoped_rows() {
+        let mut conn = test_conn();
+        run_pending_migrations(&mut conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES('p1','P','2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES('et1','p1','Character',0,0,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
+             VALUES('e1','p1','et1','Kael','private',0,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+
+        // Legacy shape: entity_type_id set, entity_id NULL — must still be insertable.
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd-legacy','et1','edad','Edad','text',0,'private',0,'2026-01-01')",
+            [],
+        ).unwrap();
+
+        // New shape: entity_id set, entity_type_id NULL — must be insertable.
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd-new','e1','nickname','Nickname','text',0,'private',0,'2026-01-01')",
+            [],
+        ).unwrap();
+
+        let legacy_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM field_definitions WHERE entity_type_id='et1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(legacy_count, 1);
+
+        let new_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM field_definitions WHERE entity_id='e1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(new_count, 1);
+    }
+
+    #[test]
+    fn migration_006_check_constraint_rejects_both_owners_set() {
+        let mut conn = test_conn();
+        run_pending_migrations(&mut conn).unwrap();
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES('p1','P','2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES('et1','p1','Character',0,0,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
+             VALUES('e1','p1','et1','Kael','private',0,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+
+        let result = conn.execute(
+            "INSERT INTO field_definitions(id,entity_type_id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd-bad','et1','e1','x','X','text',0,'private',0,'2026-01-01')",
+            [],
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn migration_006_check_constraint_rejects_neither_owner_set() {
+        let mut conn = test_conn();
+        run_pending_migrations(&mut conn).unwrap();
+        let result = conn.execute(
+            "INSERT INTO field_definitions(id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd-bad','x','X','text',0,'private',0,'2026-01-01')",
+            [],
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn migration_006_unique_index_scopes_correctly_per_entity() {
+        let mut conn = test_conn();
+        run_pending_migrations(&mut conn).unwrap();
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES('p1','P','2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES('et1','p1','Character',0,0,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
+             VALUES('e1','p1','et1','Kael','private',0,'2026-01-01','2026-01-01'),
+                    ('e2','p1','et1','Aren','private',1,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd1','e1','nickname','Nickname','text',0,'private',0,'2026-01-01')",
+            [],
+        ).unwrap();
+
+        // Same name on a different entity is fine.
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd2','e2','nickname','Nickname','text',0,'private',0,'2026-01-01')",
+            [],
+        ).unwrap();
+
+        // Same name on the SAME entity again must fail.
+        let dup = conn.execute(
+            "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd3','e1','nickname','Nickname 2','text',0,'private',0,'2026-01-01')",
+            [],
+        );
+        assert!(dup.is_err());
     }
 }
