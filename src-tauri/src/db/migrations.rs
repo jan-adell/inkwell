@@ -125,6 +125,12 @@ fn apply_migration(conn: &mut Connection, migration: &Migration) -> Result<()> {
     let checksum = sha256_hex(migration.sql);
     let now = chrono::Utc::now().to_rfc3339();
 
+    // Disable foreign key constraints for the migration. SQLite ignores PRAGMA
+    // foreign_keys once a transaction is open, so we must disable it before
+    // beginning the transaction. This is required when migrations rebuild tables
+    // that other tables reference by FK (e.g., table-rebuild patterns).
+    conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+
     // Use a savepoint so we can roll back just this migration
     // without affecting any prior work in the connection.
     let tx = conn.transaction()?;
@@ -152,6 +158,9 @@ fn apply_migration(conn: &mut Connection, migration: &Migration) -> Result<()> {
 
     tx.commit()?;
 
+    // Re-enable foreign key constraints after the migration succeeds.
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+
     Ok(())
 }
 
@@ -171,7 +180,48 @@ mod tests {
     /// WAL mode is not available for in-memory databases, so we skip
     /// pragma configuration and test the migration logic directly.
     fn test_conn() -> Connection {
-        Connection::open_in_memory().unwrap()
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        conn
+    }
+
+    fn seed(conn: &Connection) -> (String, String, String) {
+        let pid = "p1".to_string();
+        let etid = "et1".to_string();
+        let eid = "e1".to_string();
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES(?1,'P','2026-01-01','2026-01-01')",
+            [&pid],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES(?1,?2,'Character',0,0,'2026-01-01','2026-01-01')",
+            [&etid, &pid],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
+             VALUES(?1,?2,?3,'Kael','private',0,'2026-01-01','2026-01-01')",
+            [&eid, &pid, &etid],
+        ).unwrap();
+        (pid, etid, eid)
+    }
+
+    fn seed_field_def(conn: &Connection, owner_id: &str, owner_type: &str, name: &str) -> String {
+        let fd_id = format!("fd-{}", name);
+        if owner_type == "type" {
+            conn.execute(
+                "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+                 VALUES(?1,?2,?3,?3,'text',0,'private',0,'2026-01-01')",
+                [&fd_id, owner_id, name],
+            ).unwrap();
+        } else {
+            conn.execute(
+                "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+                 VALUES(?1,?2,?3,?3,'text',0,'private',0,'2026-01-01')",
+                [&fd_id, owner_id, name],
+            ).unwrap();
+        }
+        fd_id
     }
 
     #[test]
@@ -213,42 +263,18 @@ mod tests {
         let mut conn = test_conn();
         run_pending_migrations(&mut conn).unwrap();
 
-        conn.execute(
-            "INSERT INTO projects(id,name,created_at,updated_at) VALUES('p1','P','2026-01-01','2026-01-01')",
-            [],
-        ).unwrap();
-        conn.execute(
-            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
-             VALUES('et1','p1','Character',0,0,'2026-01-01','2026-01-01')",
-            [],
-        ).unwrap();
-        conn.execute(
-            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
-             VALUES('e1','p1','et1','Kael','private',0,'2026-01-01','2026-01-01')",
-            [],
-        ).unwrap();
+        let (_, etid, eid) = seed(&conn);
 
-        // Legacy shape: entity_type_id set, entity_id NULL — must still be insertable.
-        conn.execute(
-            "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,is_required,visibility,sort_order,created_at)
-             VALUES('fd-legacy','et1','edad','Edad','text',0,'private',0,'2026-01-01')",
-            [],
-        ).unwrap();
-
-        // New shape: entity_id set, entity_type_id NULL — must be insertable.
-        conn.execute(
-            "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
-             VALUES('fd-new','e1','nickname','Nickname','text',0,'private',0,'2026-01-01')",
-            [],
-        ).unwrap();
+        let _fd_legacy = seed_field_def(&conn, &etid, "type", "edad");
+        let _fd_new = seed_field_def(&conn, &eid, "entity", "nickname");
 
         let legacy_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM field_definitions WHERE entity_type_id='et1'", [], |r| r.get(0))
+            .query_row("SELECT COUNT(*) FROM field_definitions WHERE entity_type_id=?1", [&etid], |r| r.get(0))
             .unwrap();
         assert_eq!(legacy_count, 1);
 
         let new_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM field_definitions WHERE entity_id='e1'", [], |r| r.get(0))
+            .query_row("SELECT COUNT(*) FROM field_definitions WHERE entity_id=?1", [&eid], |r| r.get(0))
             .unwrap();
         assert_eq!(new_count, 1);
     }
@@ -257,25 +283,12 @@ mod tests {
     fn migration_006_check_constraint_rejects_both_owners_set() {
         let mut conn = test_conn();
         run_pending_migrations(&mut conn).unwrap();
-        conn.execute(
-            "INSERT INTO projects(id,name,created_at,updated_at) VALUES('p1','P','2026-01-01','2026-01-01')",
-            [],
-        ).unwrap();
-        conn.execute(
-            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
-             VALUES('et1','p1','Character',0,0,'2026-01-01','2026-01-01')",
-            [],
-        ).unwrap();
-        conn.execute(
-            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
-             VALUES('e1','p1','et1','Kael','private',0,'2026-01-01','2026-01-01')",
-            [],
-        ).unwrap();
+        let (_, etid, eid) = seed(&conn);
 
         let result = conn.execute(
             "INSERT INTO field_definitions(id,entity_type_id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
-             VALUES('fd-bad','et1','e1','x','X','text',0,'private',0,'2026-01-01')",
-            [],
+             VALUES('fd-bad',?1,?2,'x','X','text',0,'private',0,'2026-01-01')",
+            [&etid, &eid],
         );
         assert!(result.is_err());
     }
@@ -296,41 +309,61 @@ mod tests {
     fn migration_006_unique_index_scopes_correctly_per_entity() {
         let mut conn = test_conn();
         run_pending_migrations(&mut conn).unwrap();
-        conn.execute(
-            "INSERT INTO projects(id,name,created_at,updated_at) VALUES('p1','P','2026-01-01','2026-01-01')",
-            [],
-        ).unwrap();
-        conn.execute(
-            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
-             VALUES('et1','p1','Character',0,0,'2026-01-01','2026-01-01')",
-            [],
-        ).unwrap();
+        let (_, _, eid) = seed(&conn);
+
+        // Create a second entity
+        let eid2 = "e2".to_string();
         conn.execute(
             "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
-             VALUES('e1','p1','et1','Kael','private',0,'2026-01-01','2026-01-01'),
-                    ('e2','p1','et1','Aren','private',1,'2026-01-01','2026-01-01')",
-            [],
+             VALUES(?1,'p1','et1','Aren','private',1,'2026-01-01','2026-01-01')",
+            [&eid2],
         ).unwrap();
 
         conn.execute(
             "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
-             VALUES('fd1','e1','nickname','Nickname','text',0,'private',0,'2026-01-01')",
-            [],
+             VALUES('fd1',?1,'nickname','Nickname','text',0,'private',0,'2026-01-01')",
+            [&eid],
         ).unwrap();
 
         // Same name on a different entity is fine.
         conn.execute(
             "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
-             VALUES('fd2','e2','nickname','Nickname','text',0,'private',0,'2026-01-01')",
-            [],
+             VALUES('fd2',?1,'nickname','Nickname','text',0,'private',0,'2026-01-01')",
+            [&eid2],
         ).unwrap();
 
         // Same name on the SAME entity again must fail.
         let dup = conn.execute(
             "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
-             VALUES('fd3','e1','nickname','Nickname 2','text',0,'private',0,'2026-01-01')",
-            [],
+             VALUES('fd3',?1,'nickname','Nickname 2','text',0,'private',0,'2026-01-01')",
+            [&eid],
         );
         assert!(dup.is_err());
+    }
+
+    #[test]
+    fn migration_006_succeeds_with_field_values_fk_references() {
+        let mut conn = test_conn();
+        run_pending_migrations(&mut conn).unwrap();
+
+        let (_, etid, eid) = seed(&conn);
+
+        let fd_id = seed_field_def(&conn, &etid, "type", "bio");
+
+        conn.execute(
+            "INSERT INTO field_values(id,entity_id,field_def_id,value_text,updated_at)
+             VALUES('fv1',?1,?2,'test','2026-01-01')",
+            [&eid, &fd_id],
+        ).unwrap();
+
+        let fv_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM field_values WHERE field_def_id=?1", [&fd_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(fv_count, 1);
+
+        let fv_id: String = conn
+            .query_row("SELECT id FROM field_values WHERE field_def_id=?1", [&fd_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(fv_id, "fv1");
     }
 }
