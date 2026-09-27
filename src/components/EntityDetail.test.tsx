@@ -2,20 +2,24 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent } from "@testing-library/react";
-import { PropertyRow } from "./EntityDetail";
+import { PropertyRow, EntityDetail } from "./EntityDetail";
 import type { Entity, EntityAsset, FieldDefinition, FieldValue, FieldType } from "../types/core";
 
 vi.mock("../hooks/useTauri", () => ({
   invokeSetFieldValue: vi.fn(),
   invokeDeleteFieldDefinition: vi.fn(),
   invokeGetFieldValues: vi.fn(),
-  invokeListFieldDefinitions: vi.fn(),
+  invokeListFieldDefinitionsByType: vi.fn(),
+  invokeListFieldDefinitionsByEntity: vi.fn(),
   invokeCreateFieldDefinition: vi.fn(),
   invokeUpdateEntity: vi.fn(),
   invokeAddEntityAsset: vi.fn(),
   invokeReadEntityAsset: vi.fn(),
   invokeDeleteEntityAsset: vi.fn(),
   invokeListEntityAssets: vi.fn(),
+  invokeListOutgoingRelations: vi.fn(),
+  invokeListIncomingRelations: vi.fn(),
+  invokeListRelationTypes: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
@@ -33,8 +37,15 @@ import {
   invokeAddEntityAsset,
   invokeReadEntityAsset,
   invokeDeleteEntityAsset,
+  invokeGetFieldValues,
+  invokeListFieldDefinitionsByType,
+  invokeListFieldDefinitionsByEntity,
+  invokeListEntityAssets,
+  invokeListOutgoingRelations,
+  invokeListIncomingRelations,
 } from "../hooks/useTauri";
 import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
+import { useAppStore } from "../store/appStore";
 
 const mockSetFieldValue = invokeSetFieldValue as ReturnType<typeof vi.fn>;
 const mockDeleteFieldDefinition = invokeDeleteFieldDefinition as ReturnType<typeof vi.fn>;
@@ -42,6 +53,12 @@ const mockAddEntityAsset = invokeAddEntityAsset as ReturnType<typeof vi.fn>;
 const mockReadEntityAsset = invokeReadEntityAsset as ReturnType<typeof vi.fn>;
 const mockDeleteEntityAsset = invokeDeleteEntityAsset as ReturnType<typeof vi.fn>;
 const mockDialogOpen = dialogOpen as ReturnType<typeof vi.fn>;
+const mockGetFieldValues = invokeGetFieldValues as ReturnType<typeof vi.fn>;
+const mockListFieldDefinitionsByType = invokeListFieldDefinitionsByType as ReturnType<typeof vi.fn>;
+const mockListFieldDefinitionsByEntity = invokeListFieldDefinitionsByEntity as ReturnType<typeof vi.fn>;
+const mockListEntityAssets = invokeListEntityAssets as ReturnType<typeof vi.fn>;
+const mockListOutgoingRelations = invokeListOutgoingRelations as ReturnType<typeof vi.fn>;
+const mockListIncomingRelations = invokeListIncomingRelations as ReturnType<typeof vi.fn>;
 
 const ENTITY: Entity = {
   id: "e1",
@@ -61,7 +78,8 @@ const ENTITY: Entity = {
 function makeFieldDef(field_type: FieldType, overrides: Partial<FieldDefinition> = {}): FieldDefinition {
   return {
     id: "fd1",
-    entity_type_id: "et1",
+    entity_type_id: null,
+    entity_id: "e1",
     name: "test_field",
     label: "Test Field",
     field_type,
@@ -432,6 +450,38 @@ describe("PropertyRow", () => {
         expect(mockDeleteFieldDefinition).toHaveBeenCalledWith("fd1");
         expect(onDeleted).toHaveBeenCalledWith("fd1");
       });
+    });
+  });
+});
+
+describe("EntityDetail", () => {
+  it("merges legacy type-scoped fields with the entity's own entity-scoped fields", async () => {
+    const legacyField = makeFieldDef("text", { id: "fd-legacy", entity_type_id: "et1", entity_id: null, name: "legacy_prop", label: "Legacy Prop" });
+    const ownField = makeFieldDef("text", { id: "fd-own", entity_type_id: null, entity_id: "e1", name: "own_prop", label: "Own Prop" });
+
+    mockListFieldDefinitionsByType.mockResolvedValue([legacyField]);
+    mockListFieldDefinitionsByEntity.mockResolvedValue([ownField]);
+    mockGetFieldValues.mockResolvedValue([]);
+    mockListEntityAssets.mockResolvedValue([]);
+    mockListOutgoingRelations.mockResolvedValue([]);
+    mockListIncomingRelations.mockResolvedValue([]);
+
+    useAppStore.setState({
+      entityTypes: [{
+        id: "et1", project_id: "p1", name: "Character", name_plural: "Characters",
+        icon: null, color: "#c9a84c", description: null, is_system: false,
+        sort_order: 0, created_at: "2026-01-01", updated_at: "2026-01-01", deleted_at: null,
+      }],
+      rootEntities: [ENTITY],
+      fieldDefinitionsByType: {},
+      fieldDefinitionsByEntity: {},
+    });
+
+    render(<EntityDetail entityId="e1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Legacy Prop")).toBeInTheDocument();
+      expect(screen.getByText("Own Prop")).toBeInTheDocument();
     });
   });
 });

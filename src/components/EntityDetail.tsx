@@ -4,7 +4,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store/appStore";
 import {
   invokeGetFieldValues,
-  invokeListFieldDefinitions,
+  invokeListFieldDefinitionsByType,
+  invokeListFieldDefinitionsByEntity,
   invokeCreateFieldDefinition,
   invokeDeleteFieldDefinition,
   invokeSetFieldValue,
@@ -425,13 +426,13 @@ function AddPropertyForm({
 
     try {
       const payload: {
-        entity_type_id: string;
+        entity_id: string;
         name: string;
         label: string;
         field_type: string;
         options?: string;
       } = {
-        entity_type_id: entity.entity_type_id,
+        entity_id: entity.id,
         name: trimmed.toLowerCase().replace(/\s+/g, "_"),
         label: trimmed,
         field_type: fieldType,
@@ -582,7 +583,7 @@ function updateEntityInStore(updated: Entity) {
 }
 
 export function EntityDetail({ entityId }: { entityId: string }) {
-  const { entityTypes, fieldDefinitionsByType, setFieldDefinitionsForType } = useAppStore();
+  const { entityTypes, fieldDefinitionsByType, setFieldDefinitionsForType, fieldDefinitionsByEntity, setFieldDefinitionsForEntity } = useAppStore();
   const [entity, setEntity] = useState<Entity | null>(() => findEntityInStore(entityId) ?? null);
   const [fieldValues, setFieldValues] = useState<Map<string, FieldValue>>(new Map());
   const [assets, setAssets] = useState<EntityAsset[]>([]);
@@ -594,7 +595,10 @@ export function EntityDetail({ entityId }: { entityId: string }) {
     : undefined;
 
   const fieldDefs: FieldDefinition[] = entity
-    ? (fieldDefinitionsByType[entity.entity_type_id] ?? [])
+    ? [
+        ...(fieldDefinitionsByType[entity.entity_type_id] ?? []),
+        ...(fieldDefinitionsByEntity[entity.id] ?? []),
+      ]
     : [];
 
   useEffect(() => {
@@ -609,11 +613,15 @@ export function EntityDetail({ entityId }: { entityId: string }) {
   useEffect(() => {
     if (!entity) return;
     const typeId = entity.entity_type_id;
-    if (fieldDefinitionsByType[typeId]) return;
-    invokeListFieldDefinitions(typeId)
-      .then((defs) => setFieldDefinitionsForType(typeId, defs))
+    if (!fieldDefinitionsByType[typeId]) {
+      invokeListFieldDefinitionsByType(typeId)
+        .then((defs) => setFieldDefinitionsForType(typeId, defs))
+        .catch(console.error);
+    }
+    invokeListFieldDefinitionsByEntity(entity.id)
+      .then((defs) => setFieldDefinitionsForEntity(entity.id, defs))
       .catch(console.error);
-  }, [entity?.entity_type_id]);
+  }, [entity?.entity_type_id, entity?.id]);
 
   useEffect(() => {
     invokeGetFieldValues(entityId)
@@ -707,8 +715,10 @@ export function EntityDetail({ entityId }: { entityId: string }) {
                 entity={entity}
                 asset={assets.find((a) => a.label === fd.id)}
                 onDeleted={(id) => {
-                  const current = fieldDefinitionsByType[entity.entity_type_id] ?? [];
-                  setFieldDefinitionsForType(entity.entity_type_id, current.filter((f) => f.id !== id));
+                  const typeList = fieldDefinitionsByType[entity.entity_type_id] ?? [];
+                  setFieldDefinitionsForType(entity.entity_type_id, typeList.filter((f) => f.id !== id));
+                  const entityList = fieldDefinitionsByEntity[entity.id] ?? [];
+                  setFieldDefinitionsForEntity(entity.id, entityList.filter((f) => f.id !== id));
                 }}
                 onSaved={(fv) => {
                   setFieldValues((prev) => new Map(prev).set(fv.field_def_id, fv));
@@ -722,8 +732,8 @@ export function EntityDetail({ entityId }: { entityId: string }) {
         <AddPropertyForm
           entity={entity}
           onAdded={(fd) => {
-            const current = fieldDefinitionsByType[entity.entity_type_id] ?? [];
-            setFieldDefinitionsForType(entity.entity_type_id, [...current, fd]);
+            const current = fieldDefinitionsByEntity[entity.id] ?? [];
+            setFieldDefinitionsForEntity(entity.id, [...current, fd]);
           }}
         />
 
