@@ -3,126 +3,6 @@ use rusqlite::{params, Connection};
 use crate::error::{InkwellError, Result};
 use crate::models::entity_type::{CreateEntityTypeRequest, EntityType, UpdateEntityTypeRequest};
 
-struct DefaultField {
-    name: &'static str,
-    label: &'static str,
-    field_type: &'static str,
-    options: Option<&'static str>,
-    default_value: Option<&'static str>,
-}
-
-const fn field(name: &'static str, label: &'static str, field_type: &'static str) -> DefaultField {
-    DefaultField {
-        name,
-        label,
-        field_type,
-        options: None,
-        default_value: None,
-    }
-}
-
-const fn field_with_options(
-    name: &'static str,
-    label: &'static str,
-    field_type: &'static str,
-    options: &'static str,
-) -> DefaultField {
-    DefaultField {
-        name,
-        label,
-        field_type,
-        options: Some(options),
-        default_value: None,
-    }
-}
-
-const CHARACTER_FIELDS: &[DefaultField] = &[
-    field("birth_date", "Birth Date", "date"),
-    field_with_options("height", "Height", "number", r#"{"unit":"cm"}"#),
-    field_with_options(
-        "eye_color",
-        "Eye Color",
-        "select",
-        r#"["Brown","Blue","Green","Hazel","Gray","Amber","Other"]"#,
-    ),
-    field("occupation", "Occupation", "text"),
-    field("personality", "Personality", "textarea"),
-    DefaultField {
-        name: "alive",
-        label: "Alive",
-        field_type: "boolean",
-        options: None,
-        default_value: Some("true"),
-    },
-];
-
-const LOCATION_FIELDS: &[DefaultField] = &[
-    field("description", "Description", "textarea"),
-    field_with_options(
-        "climate",
-        "Climate",
-        "select",
-        r#"["Tropical","Arid","Temperate","Continental","Polar","Mediterranean","Other"]"#,
-    ),
-    field("population", "Population", "number"),
-    field("founded", "Founded", "date"),
-    field("region", "Region", "text"),
-    field("notable_landmark", "Notable Landmark", "text"),
-];
-
-const ITEM_FIELDS: &[DefaultField] = &[
-    field("description", "Description", "textarea"),
-    field("material", "Material", "text"),
-    field("value", "Value", "number"),
-    field_with_options(
-        "rarity",
-        "Rarity",
-        "select",
-        r#"["Common","Uncommon","Rare","Legendary","Unique"]"#,
-    ),
-    field("origin", "Origin", "textarea"),
-    field("magical", "Magical", "boolean"),
-];
-
-const EVENT_FIELDS: &[DefaultField] = &[
-    field("description", "Description", "textarea"),
-    field("date", "Date", "date"),
-    field("duration", "Duration", "text"),
-    field("outcome", "Outcome", "textarea"),
-    field_with_options(
-        "significance",
-        "Significance",
-        "select",
-        r#"["Minor","Notable","Major","Pivotal"]"#,
-    ),
-    field("casualties", "Casualties", "number"),
-];
-
-const ORGANIZATION_FIELDS: &[DefaultField] = &[
-    field("description", "Description", "textarea"),
-    field("founded", "Founded", "date"),
-    field_with_options(
-        "type",
-        "Type",
-        "select",
-        r#"["Government","Guild","Religious","Military","Criminal","Commercial","Academic","Other"]"#,
-    ),
-    field("headquarters", "Headquarters", "text"),
-    field("motto", "Motto", "text"),
-    field("active", "Active", "boolean"),
-];
-
-fn default_fields_for(entity_type_name: &str) -> &'static [DefaultField] {
-    match entity_type_name {
-        "Character" => CHARACTER_FIELDS,
-        "Location" => LOCATION_FIELDS,
-        "Item" => ITEM_FIELDS,
-        "Event" => EVENT_FIELDS,
-        "Organization" => ORGANIZATION_FIELDS,
-        _ => &[],
-    }
-}
-
 fn row_to_entity_type(row: &rusqlite::Row) -> rusqlite::Result<EntityType> {
     Ok(EntityType {
         id: row.get(0)?,
@@ -237,9 +117,11 @@ pub fn update(conn: &Connection, id: &str, req: &UpdateEntityTypeRequest) -> Res
 }
 
 /// Ensures every default entity type exists in the project, creating whichever
-/// ones (by name) are still missing along with their default field_definitions.
-/// A type that already exists — regardless of how the project came to have it —
-/// is never modified. Safe to call on every project open, for any project.
+/// ones (by name) are still missing. A type that already exists — regardless
+/// of how the project came to have it — is never modified. Safe to call on
+/// every project open, for any project. Creates entity_types rows only —
+/// properties are applied per-entity at entity-creation time instead
+/// (see `entity_repo::create`).
 pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
     let existing = list(conn, project_id)?;
     let existing_names: std::collections::HashSet<&str> =
@@ -265,7 +147,7 @@ pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
             continue;
         }
 
-        let entity_type = create(
+        create(
             conn,
             project_id,
             &CreateEntityTypeRequest {
@@ -278,29 +160,6 @@ pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
             },
         )?;
         next_sort_order += 1;
-
-        for (j, default_field) in default_fields_for(name).iter().enumerate() {
-            let fd_id = ulid::Ulid::new().to_string();
-            let now = chrono::Utc::now().to_rfc3339();
-            conn.execute(
-                "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,
-                    options,default_value,is_required,visibility,sort_order,created_at)
-                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
-                params![
-                    fd_id,
-                    entity_type.id.clone(),
-                    default_field.name.to_string(),
-                    default_field.label.to_string(),
-                    default_field.field_type.to_string(),
-                    default_field.options.map(|s| s.to_string()),
-                    default_field.default_value.map(|s| s.to_string()),
-                    0i64,
-                    "private",
-                    j as i64,
-                    now
-                ],
-            )?;
-        }
     }
     Ok(())
 }
@@ -327,7 +186,6 @@ pub fn delete(conn: &Connection, id: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::field_definition_repo;
     use crate::db::migrations::{ensure_migrations_table, run_pending_migrations};
 
     fn test_conn() -> Connection {
@@ -472,62 +330,6 @@ mod tests {
         assert_eq!(types.len(), 6);
     }
 
-    fn field_names_and_types(conn: &Connection, entity_type_id: &str) -> Vec<(String, String)> {
-        field_definition_repo::list_by_entity_type(conn, entity_type_id)
-            .unwrap()
-            .into_iter()
-            .map(|f| (f.name, f.field_type))
-            .collect()
-    }
-
-    #[test]
-    fn seed_defaults_entity_type_has_no_fields() {
-        let conn = test_conn();
-        let pid = seed_project(&conn);
-        seed_defaults(&conn, &pid).unwrap();
-        let types = list(&conn, &pid).unwrap();
-        let entity_type = types.iter().find(|t| t.name == "Entity").unwrap();
-        assert!(
-            field_definition_repo::list_by_entity_type(&conn, &entity_type.id)
-                .unwrap()
-                .is_empty()
-        );
-    }
-
-    #[test]
-    fn seed_defaults_character_gets_expected_fields() {
-        let conn = test_conn();
-        let pid = seed_project(&conn);
-        seed_defaults(&conn, &pid).unwrap();
-        let types = list(&conn, &pid).unwrap();
-        let character = types.iter().find(|t| t.name == "Character").unwrap();
-        let fields = field_names_and_types(&conn, &character.id);
-        assert_eq!(
-            fields,
-            vec![
-                ("birth_date".to_string(), "date".to_string()),
-                ("height".to_string(), "number".to_string()),
-                ("eye_color".to_string(), "select".to_string()),
-                ("occupation".to_string(), "text".to_string()),
-                ("personality".to_string(), "textarea".to_string()),
-                ("alive".to_string(), "boolean".to_string()),
-            ]
-        );
-    }
-
-    #[test]
-    fn seed_defaults_named_types_each_get_six_fields() {
-        let conn = test_conn();
-        let pid = seed_project(&conn);
-        seed_defaults(&conn, &pid).unwrap();
-        let types = list(&conn, &pid).unwrap();
-        for name in ["Location", "Item", "Event", "Organization"] {
-            let et = types.iter().find(|t| t.name == name).unwrap();
-            let fields = field_definition_repo::list_by_entity_type(&conn, &et.id).unwrap();
-            assert_eq!(fields.len(), 6, "expected 6 fields for {name}");
-        }
-    }
-
     #[test]
     fn seed_defaults_assigns_sort_order_in_order() {
         let conn = test_conn();
@@ -609,14 +411,8 @@ mod tests {
         assert_eq!(types.len(), 6);
         assert!(types.iter().any(|t| t.name == "Entity"));
 
-        // The pre-existing Character type must be untouched: same row, still no fields.
         let refetched = get(&conn, &character.id).unwrap();
         assert_eq!(refetched.id, character.id);
-        assert!(
-            field_definition_repo::list_by_entity_type(&conn, &character.id)
-                .unwrap()
-                .is_empty()
-        );
     }
 
     #[test]
