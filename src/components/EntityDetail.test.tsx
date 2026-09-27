@@ -265,6 +265,80 @@ describe("PropertyRow", () => {
     });
   });
 
+  describe("select field", () => {
+    function setupSelect(fieldValue?: FieldValue) {
+      const fieldDef = {
+        ...makeFieldDef("select"),
+        options: JSON.stringify(["Brown", "Blue", "Green"]),
+      };
+      render(
+        <PropertyRow
+          fieldDef={fieldDef}
+          fieldValue={fieldValue}
+          entity={ENTITY}
+          onDeleted={vi.fn()}
+          onSaved={vi.fn()}
+          asset={undefined}
+          onAssetChanged={vi.fn()}
+        />
+      );
+    }
+
+    it("renders a dropdown with the configured options", () => {
+      setupSelect();
+      expect(screen.getByRole("combobox")).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Brown" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Blue" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Green" })).toBeInTheDocument();
+    });
+
+    it("displays existing selected value", () => {
+      setupSelect(makeFieldValue({ value_text: "Blue" }));
+      expect(screen.getByRole("combobox")).toHaveValue("Blue");
+    });
+
+    it("saves selected value with Text payload", async () => {
+      setupSelect();
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "Green" } });
+      await waitFor(() => {
+        expect(mockSetFieldValue).toHaveBeenCalledWith({
+          entity_id: "e1",
+          field_def_id: "fd1",
+          value: { type: "Text", value: "Green" },
+        });
+      });
+    });
+  });
+
+  describe("boolean field", () => {
+    it("renders a checkbox", () => {
+      setup("boolean");
+      expect(screen.getByRole("checkbox")).toBeInTheDocument();
+    });
+
+    it("is unchecked when there is no existing value", () => {
+      setup("boolean");
+      expect(screen.getByRole("checkbox")).not.toBeChecked();
+    });
+
+    it("displays existing boolean value as checked", () => {
+      setup("boolean", makeFieldValue({ value_boolean: true }));
+      expect(screen.getByRole("checkbox")).toBeChecked();
+    });
+
+    it("saves checked state with Boolean payload", async () => {
+      const { user } = setup("boolean");
+      await user.click(screen.getByRole("checkbox"));
+      await waitFor(() => {
+        expect(mockSetFieldValue).toHaveBeenCalledWith({
+          entity_id: "e1",
+          field_def_id: "fd1",
+          value: { type: "Boolean", value: true },
+        });
+      });
+    });
+  });
+
   describe("image field", () => {
     it("shows Choose image button when no asset", () => {
       setup("image");

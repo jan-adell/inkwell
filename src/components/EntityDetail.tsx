@@ -54,6 +54,16 @@ function getNumberUnit(fieldDef: FieldDefinition): string {
   }
 }
 
+function getSelectOptions(fieldDef: FieldDefinition): string[] {
+  if (fieldDef.field_type !== "select" || !fieldDef.options) return [];
+  try {
+    const parsed = JSON.parse(fieldDef.options) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 function parseEntityTypeIdFromOptions(options: string | null | undefined): string | null {
   if (!options) return null;
 
@@ -326,6 +336,24 @@ export function PropertyRow({
           renderEntitySelect()
         ) : fieldDef.field_type === "multiselect" ? (
           renderEntityListSelect()
+        ) : fieldDef.field_type === "select" ? (
+          <select
+            value={draft}
+            onChange={(e) => void save(e.target.value)}
+            className="w-full bg-transparent text-ivory text-sm focus:outline-none"
+          >
+            <option value="">—</option>
+            {getSelectOptions(fieldDef).map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        ) : fieldDef.field_type === "boolean" ? (
+          <input
+            type="checkbox"
+            checked={draft === "true"}
+            onChange={(e) => void save(e.target.checked ? "true" : "false")}
+            className="h-4 w-4 accent-gold"
+          />
         ) : (
           <div className="flex items-baseline gap-1 min-w-0">
             <input
