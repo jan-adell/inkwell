@@ -1,5 +1,6 @@
 import { useReducer } from "react";
 import { useAppStore } from "./store/appStore";
+import { useApplyAppearance } from "./hooks/useApplyAppearance";
 import { invokeOpenProject, invokeListKnownProjects } from "./hooks/useTauri";
 import { SplashPage } from "./pages/SplashPage";
 import { ProjectLibrary } from "./pages/ProjectLibrary";
@@ -21,6 +22,7 @@ type Screen = "library" | "create" | "shell";
  * Navigation is local state — no routing library needed at this stage.
  */
 export default function App() {
+  useApplyAppearance();
   const { coreInitialized, setProjectId, setProjectPath, setKnownProjects, resetProjectState } = useAppStore();
   const [screen, setScreen] = useReducer(
     (_prev: Screen, next: Screen) => next,
