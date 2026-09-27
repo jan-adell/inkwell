@@ -30,7 +30,7 @@ pub async fn create_field_definition(
 }
 
 #[tauri::command]
-pub async fn list_field_definitions(
+pub async fn list_field_definitions_by_type(
     state: State<'_, AppState>,
     entity_type_id: String,
 ) -> Result<Vec<FieldDefinition>> {
@@ -39,6 +39,18 @@ pub async fn list_field_definitions(
         .lock()
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
     field_definition_repo::list_by_entity_type(&conn, &entity_type_id)
+}
+
+#[tauri::command]
+pub async fn list_field_definitions_by_entity(
+    state: State<'_, AppState>,
+    entity_id: String,
+) -> Result<Vec<FieldDefinition>> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+    field_definition_repo::list_by_entity(&conn, &entity_id)
 }
 
 #[tauri::command]

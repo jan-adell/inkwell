@@ -36,7 +36,8 @@ pub fn run() {
             commands::entities::delete_entity,
             // Field definitions
             commands::field_definitions::create_field_definition,
-            commands::field_definitions::list_field_definitions,
+            commands::field_definitions::list_field_definitions_by_type,
+            commands::field_definitions::list_field_definitions_by_entity,
             commands::field_definitions::update_field_definition,
             commands::field_definitions::delete_field_definition,
             // Field values

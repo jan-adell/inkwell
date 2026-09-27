@@ -113,7 +113,6 @@ pub fn list_by_entity_type(
     rows.map(|r| r.map_err(InkwellError::Database)).collect()
 }
 
-#[allow(dead_code)]
 pub fn list_by_entity(conn: &Connection, entity_id: &str) -> Result<Vec<FieldDefinition>> {
     let mut stmt = conn.prepare(
         "SELECT id,entity_type_id,entity_id,name,label,field_type,options,default_value,
