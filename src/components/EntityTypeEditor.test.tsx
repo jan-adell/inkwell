@@ -260,4 +260,17 @@ describe("EntityTypeEditor", () => {
       expect(useAppStore.getState().entityTemplates).toHaveLength(0);
     });
   });
+
+  it("keeps the template and shows an error when deleting fails", async () => {
+    const user = userEvent.setup();
+    mockDelete.mockRejectedValue(new Error("disk full"));
+    render(<EntityTypeEditor />);
+
+    await user.click(screen.getByRole("button", { name: /delete character/i }));
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+
+    expect(await screen.findByText(/unable to delete entity type/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
+    expect(useAppStore.getState().entityTemplates).toHaveLength(1);
+  });
 });

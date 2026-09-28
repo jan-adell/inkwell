@@ -269,6 +269,7 @@ export function EntityTypeEditor() {
   const { entityTemplates, setEntityTemplates } = useAppStore();
   const [editing, setEditing] = useState<EntityTemplate | "new" | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EntityTemplate | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function handleSaved(template: EntityTemplate) {
     const exists = entityTemplates.some((t) => t.id === template.id);
@@ -282,9 +283,15 @@ export function EntityTypeEditor() {
 
   async function confirmDelete() {
     if (!pendingDelete) return;
-    await invokeDeleteEntityTemplate(pendingDelete.id);
-    setEntityTemplates(entityTemplates.filter((t) => t.id !== pendingDelete.id));
-    setPendingDelete(null);
+    setDeleteError(null);
+    try {
+      await invokeDeleteEntityTemplate(pendingDelete.id);
+      setEntityTemplates(entityTemplates.filter((t) => t.id !== pendingDelete.id));
+    } catch {
+      setDeleteError(`Unable to delete entity type "${pendingDelete.name}".`);
+    } finally {
+      setPendingDelete(null);
+    }
   }
 
   if (editing) {
@@ -329,6 +336,8 @@ export function EntityTypeEditor() {
           </div>
         </div>
       ))}
+
+      {deleteError && <p className="text-[10px] text-crimson">{deleteError}</p>}
 
       <button
         onClick={() => setEditing("new")}
