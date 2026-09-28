@@ -20,7 +20,7 @@ pub async fn create_entity(
         .db
         .lock()
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
-    entity_repo::create(&conn, &project_id, &req)
+    entity_repo::create(&conn, &project_id, &req, &[])
 }
 
 #[tauri::command]

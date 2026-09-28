@@ -112,28 +112,18 @@ mod tests {
 
     fn seed_entity(conn: &Connection) -> Entity {
         crate::db::project_repo::create(conn, "proj-1", "P").unwrap();
-        let type_id = {
-            let id = ulid::Ulid::new().to_string();
-            let now = chrono::Utc::now().to_rfc3339();
-            conn.execute(
-                "INSERT INTO entity_types (id, project_id, name, is_system, sort_order, created_at, updated_at)
-                 VALUES (?1, 'proj-1', 'Character', 0, 0, ?2, ?2)",
-                params![id, now],
-            )
-            .unwrap();
-            id
-        };
         crate::db::entity_repo::create(
             conn,
             "proj-1",
             &CreateEntityRequest {
-                entity_type_id: type_id,
+                entity_type_name: "Character".into(),
                 name: "Kael".into(),
                 summary: None,
                 visibility: None,
                 sort_order: None,
                 folder_id: None,
             },
+            &[],
         )
         .unwrap()
     }
