@@ -25,7 +25,6 @@ pub fn run() {
             commands::entity_types::list_entity_types,
             commands::entity_types::update_entity_type,
             commands::entity_types::delete_entity_type,
-            // Entity templates (application-level)
             commands::entity_templates::list_entity_templates,
             commands::entity_templates::create_entity_template,
             commands::entity_templates::update_entity_template,
