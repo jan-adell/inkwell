@@ -56,9 +56,26 @@ fn validate_fields(fields: &[DefaultField]) -> Result<()> {
     Ok(())
 }
 
+fn ensure_name_is_free(
+    templates: &[EntityTemplate],
+    name: &str,
+    own_id: Option<&str>,
+) -> Result<()> {
+    let taken = templates
+        .iter()
+        .any(|t| t.name == name && Some(t.id.as_str()) != own_id);
+    if taken {
+        return Err(InkwellError::Conflict(format!(
+            "An entity type named '{name}' already exists"
+        )));
+    }
+    Ok(())
+}
+
 pub fn create(app_data_dir: &Path, req: &CreateEntityTemplateRequest) -> Result<EntityTemplate> {
     validate_fields(&req.fields)?;
     let mut templates = load(app_data_dir)?;
+    ensure_name_is_free(&templates, &req.name, None)?;
     let template = EntityTemplate {
         id: ulid::Ulid::new().to_string(),
         name: req.name.clone(),
@@ -86,6 +103,9 @@ pub fn update(
         .ok_or_else(|| InkwellError::NotFound(format!("EntityTemplate '{id}' not found")))?;
 
     let current = templates[idx].clone();
+    if let Some(ref name) = req.name {
+        ensure_name_is_free(&templates, name, Some(id))?;
+    }
     let updated = EntityTemplate {
         id: current.id,
         name: req.name.clone().unwrap_or(current.name),
@@ -431,6 +451,59 @@ mod tests {
             load(dir.path()).unwrap()[0].fields.len(),
             character.fields.len()
         );
+    }
+
+    #[test]
+    fn create_rejects_a_name_already_used_by_another_template() {
+        let dir = tempdir().unwrap();
+        load(dir.path()).unwrap();
+
+        let result = create(dir.path(), &create_request("Character", vec![]));
+
+        assert!(matches!(result, Err(InkwellError::Conflict(_))));
+        assert_eq!(load(dir.path()).unwrap().len(), 5);
+    }
+
+    #[test]
+    fn update_rejects_renaming_into_another_templates_name() {
+        let dir = tempdir().unwrap();
+        let templates = load(dir.path()).unwrap();
+        let location = templates.iter().find(|t| t.name == "Location").unwrap();
+
+        let result = update(
+            dir.path(),
+            &location.id,
+            &UpdateEntityTemplateRequest {
+                name: Some("Character".to_string()),
+                name_plural: None,
+                color: None,
+                fields: None,
+            },
+        );
+
+        assert!(matches!(result, Err(InkwellError::Conflict(_))));
+        let after = load(dir.path()).unwrap();
+        assert_eq!(after.iter().filter(|t| t.name == "Character").count(), 1);
+        assert!(after.iter().any(|t| t.name == "Location"));
+    }
+
+    #[test]
+    fn update_allows_keeping_its_own_name() {
+        let dir = tempdir().unwrap();
+        let character = load(dir.path()).unwrap()[0].clone();
+
+        let result = update(
+            dir.path(),
+            &character.id,
+            &UpdateEntityTemplateRequest {
+                name: Some(character.name.clone()),
+                name_plural: None,
+                color: Some("#000000".to_string()),
+                fields: None,
+            },
+        );
+
+        assert_eq!(result.unwrap().color, "#000000");
     }
 
     #[test]
