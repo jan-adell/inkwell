@@ -88,6 +88,36 @@ describe("EntityTypeEditor", () => {
     });
   });
 
+  it("refuses to save a template with a blank property label", async () => {
+    const user = userEvent.setup();
+    render(<EntityTypeEditor />);
+
+    await user.click(screen.getByRole("button", { name: /add entity type/i }));
+    await user.type(screen.getByPlaceholderText(/^name$/i), "Planet");
+    await user.click(screen.getByRole("button", { name: /add field/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(await screen.findByText(/every property needs a name/i)).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses to save a template with two properties of the same name", async () => {
+    const user = userEvent.setup();
+    render(<EntityTypeEditor />);
+
+    await user.click(screen.getByRole("button", { name: /add entity type/i }));
+    await user.type(screen.getByPlaceholderText(/^name$/i), "Planet");
+    await user.click(screen.getByRole("button", { name: /add field/i }));
+    await user.click(screen.getByRole("button", { name: /add field/i }));
+    const labels = screen.getAllByPlaceholderText(/property label/i);
+    await user.type(labels[0], "Notes");
+    await user.type(labels[1], "Notes");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(await screen.findByText(/two properties share the name/i)).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
   it("deletes a template after confirming", async () => {
     const user = userEvent.setup();
     mockDelete.mockResolvedValue(undefined);

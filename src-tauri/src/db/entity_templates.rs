@@ -38,7 +38,26 @@ fn save(app_data_dir: &Path, templates: &[EntityTemplate]) -> Result<()> {
     Ok(())
 }
 
+fn validate_fields(fields: &[DefaultField]) -> Result<()> {
+    let mut seen = std::collections::HashSet::new();
+    for field in fields {
+        if field.name.trim().is_empty() || field.label.trim().is_empty() {
+            return Err(InkwellError::Validation(
+                "Every property needs a non-empty name and label".into(),
+            ));
+        }
+        if !seen.insert(field.name.as_str()) {
+            return Err(InkwellError::Validation(format!(
+                "Two properties share the name '{}'",
+                field.name
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub fn create(app_data_dir: &Path, req: &CreateEntityTemplateRequest) -> Result<EntityTemplate> {
+    validate_fields(&req.fields)?;
     let mut templates = load(app_data_dir)?;
     let template = EntityTemplate {
         id: ulid::Ulid::new().to_string(),
@@ -57,6 +76,9 @@ pub fn update(
     id: &str,
     req: &UpdateEntityTemplateRequest,
 ) -> Result<EntityTemplate> {
+    if let Some(ref fields) = req.fields {
+        validate_fields(fields)?;
+    }
     let mut templates = load(app_data_dir)?;
     let idx = templates
         .iter()
@@ -306,6 +328,109 @@ mod tests {
         };
         let result = update(dir.path(), "does-not-exist", &req);
         assert!(matches!(result, Err(InkwellError::NotFound(_))));
+    }
+
+    fn text_field(name: &str, label: &str) -> DefaultField {
+        field(name, label, "text")
+    }
+
+    fn create_request(name: &str, fields: Vec<DefaultField>) -> CreateEntityTemplateRequest {
+        CreateEntityTemplateRequest {
+            name: name.to_string(),
+            name_plural: format!("{name}s"),
+            color: "#00FFAA".to_string(),
+            fields,
+        }
+    }
+
+    fn fields_update(fields: Vec<DefaultField>) -> UpdateEntityTemplateRequest {
+        UpdateEntityTemplateRequest {
+            name: None,
+            name_plural: None,
+            color: None,
+            fields: Some(fields),
+        }
+    }
+
+    #[test]
+    fn create_rejects_a_field_with_a_blank_name_or_label() {
+        let dir = tempdir().unwrap();
+        load(dir.path()).unwrap();
+
+        let blank_name = create(
+            dir.path(),
+            &create_request("Planet", vec![text_field("  ", "Radius")]),
+        );
+        let blank_label = create(
+            dir.path(),
+            &create_request("Planet", vec![text_field("radius", " ")]),
+        );
+
+        assert!(matches!(blank_name, Err(InkwellError::Validation(_))));
+        assert!(matches!(blank_label, Err(InkwellError::Validation(_))));
+        assert_eq!(load(dir.path()).unwrap().len(), 5);
+    }
+
+    #[test]
+    fn create_rejects_two_fields_with_the_same_name() {
+        let dir = tempdir().unwrap();
+        load(dir.path()).unwrap();
+
+        let result = create(
+            dir.path(),
+            &create_request(
+                "Planet",
+                vec![text_field("notes", "Notes"), text_field("notes", "Notes")],
+            ),
+        );
+
+        assert!(matches!(result, Err(InkwellError::Validation(_))));
+        assert_eq!(load(dir.path()).unwrap().len(), 5);
+    }
+
+    #[test]
+    fn update_rejects_a_field_with_a_blank_name_or_label() {
+        let dir = tempdir().unwrap();
+        let character = load(dir.path()).unwrap()[0].clone();
+
+        let blank_name = update(
+            dir.path(),
+            &character.id,
+            &fields_update(vec![text_field("", "Notes")]),
+        );
+        let blank_label = update(
+            dir.path(),
+            &character.id,
+            &fields_update(vec![text_field("notes", "")]),
+        );
+
+        assert!(matches!(blank_name, Err(InkwellError::Validation(_))));
+        assert!(matches!(blank_label, Err(InkwellError::Validation(_))));
+        assert_eq!(
+            load(dir.path()).unwrap()[0].fields.len(),
+            character.fields.len()
+        );
+    }
+
+    #[test]
+    fn update_rejects_two_fields_with_the_same_name() {
+        let dir = tempdir().unwrap();
+        let character = load(dir.path()).unwrap()[0].clone();
+
+        let result = update(
+            dir.path(),
+            &character.id,
+            &fields_update(vec![
+                text_field("notes", "Notes"),
+                text_field("notes", "Notes"),
+            ]),
+        );
+
+        assert!(matches!(result, Err(InkwellError::Validation(_))));
+        assert_eq!(
+            load(dir.path()).unwrap()[0].fields.len(),
+            character.fields.len()
+        );
     }
 
     #[test]

@@ -32,6 +32,15 @@ const FIELD_TYPE_COLORS: Record<FieldType, string> = {
   color: "#6B7280",
 };
 
+function fieldsError(fields: DefaultField[]): string | null {
+  if (fields.some((f) => !f.label.trim() || !f.name.trim())) {
+    return "Every property needs a name.";
+  }
+  const names = fields.map((f) => f.name);
+  const duplicate = names.find((n, i) => names.indexOf(n) !== i);
+  return duplicate ? `Two properties share the name "${duplicate}".` : null;
+}
+
 function emptyField(): DefaultField {
   return { name: "", label: "", field_type: "text", options: null, default_value: null };
 }
@@ -64,6 +73,11 @@ function TemplateForm({
     const trimmed = name.trim();
     if (!trimmed) {
       setError("Please enter a name.");
+      return;
+    }
+    const invalidFields = fieldsError(fields);
+    if (invalidFields) {
+      setError(invalidFields);
       return;
     }
     setSaving(true);

@@ -46,8 +46,9 @@ pub fn create(
         .map(|t| (t.name_plural.as_str(), t.color.as_str()))
         .unwrap_or((req.entity_type_name.as_str(), "#6B7280"));
 
+    let tx = conn.unchecked_transaction()?;
     let entity_type = entity_type_repo::get_or_create_by_name(
-        conn,
+        &tx,
         project_id,
         &req.entity_type_name,
         name_plural,
@@ -58,7 +59,7 @@ pub fn create(
     let now = chrono::Utc::now().to_rfc3339();
     let sort_order = req.sort_order.unwrap_or(0);
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO entities
             (id, project_id, entity_type_id, name, summary,
              visibility, sort_order, folder_id, created_at, updated_at)
@@ -78,7 +79,7 @@ pub fn create(
 
     if let Some(template) = matching_template {
         let legacy_names: std::collections::HashSet<String> =
-            field_definition_repo::list_by_entity_type(conn, &entity_type.id)?
+            field_definition_repo::list_by_entity_type(&tx, &entity_type.id)?
                 .into_iter()
                 .map(|f| f.name)
                 .collect();
@@ -89,7 +90,7 @@ pub fn create(
             .enumerate()
         {
             field_definition_repo::create(
-                conn,
+                &tx,
                 &CreateFieldDefinitionRequest {
                     entity_id: id.clone(),
                     name: field.name.clone(),
@@ -105,6 +106,7 @@ pub fn create(
         }
     }
 
+    tx.commit()?;
     get(conn, &id)
 }
 
@@ -555,6 +557,45 @@ mod tests {
         assert_eq!(types[0].name, "Planet");
         assert_eq!(types[0].name_plural.as_deref(), Some("Planets"));
         assert_eq!(types[0].color.as_deref(), Some("#00FFAA"));
+    }
+
+    #[test]
+    fn create_rolls_back_everything_when_a_template_field_insert_fails() {
+        let conn = test_conn();
+        let pid = "01PROJ000000000000000000007".to_string();
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES(?1,'P','2026-01-01','2026-01-01')",
+            params![pid],
+        ).unwrap();
+
+        let notes = DefaultField {
+            name: "notes".into(),
+            label: "Notes".into(),
+            field_type: "text".into(),
+            options: None,
+            default_value: None,
+        };
+        let template = EntityTemplate {
+            id: "tmpl-broken".to_string(),
+            name: "Broken".to_string(),
+            name_plural: "Brokens".to_string(),
+            color: "#123456".to_string(),
+            fields: vec![notes.clone(), notes],
+        };
+
+        let result = create(&conn, &pid, &make_entity("Broken", "Half"), &[template]);
+
+        assert!(matches!(result, Err(InkwellError::Conflict(_))));
+        assert!(list(&conn, &pid).unwrap().is_empty());
+        assert!(entity_type_repo::list(&conn, &pid).unwrap().is_empty());
+        let orphan_fields: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM field_definitions WHERE entity_id IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(orphan_fields, 0);
     }
 
     #[test]
