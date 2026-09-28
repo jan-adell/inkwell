@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn create_adds_a_template() {
         let dir = tempdir().unwrap();
-        load(dir.path()).unwrap(); // seed
+        load(dir.path()).unwrap();
         let req = CreateEntityTemplateRequest {
             name: "Planet".to_string(),
             name_plural: "Planets".to_string(),
@@ -296,7 +296,7 @@ mod tests {
         };
         let updated = update(dir.path(), &character.id, &req).unwrap();
         assert_eq!(updated.name, "Protagonist");
-        assert_eq!(updated.color, character.color); // unchanged field preserved
+        assert_eq!(updated.color, character.color);
 
         let after = load(dir.path()).unwrap();
         assert!(after.iter().any(|t| t.name == "Protagonist"));
