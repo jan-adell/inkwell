@@ -3,15 +3,21 @@ import { ArrowLeft, BarChart3, Palette } from "lucide-react";
 import { StatisticsPanel } from "./StatisticsPanel";
 import { AppearanceSettings } from "./AppearanceSettings";
 
-type SettingsSection = "statistics" | "appearance";
+export type SettingsSection = "statistics" | "appearance";
 
-const SECTIONS: { id: SettingsSection; label: string; icon: typeof BarChart3 }[] = [
+const ALL_SECTIONS: { id: SettingsSection; label: string; icon: typeof BarChart3 }[] = [
   { id: "statistics", label: "Statistics", icon: BarChart3 },
   { id: "appearance", label: "Appearance", icon: Palette },
 ];
 
-export function SettingsScreen({ onBack }: { onBack: () => void }) {
-  const [activeSection, setActiveSection] = useState<SettingsSection>("statistics");
+interface Props {
+  onBack: () => void;
+  sections?: SettingsSection[];
+}
+
+export function SettingsScreen({ onBack, sections = ["statistics", "appearance"] }: Props) {
+  const visibleSections = ALL_SECTIONS.filter((section) => sections.includes(section.id));
+  const [activeSection, setActiveSection] = useState<SettingsSection>(visibleSections[0].id);
 
   return (
     <div className="flex flex-1 min-h-0 bg-ink-void">
@@ -24,7 +30,7 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
           Back
         </button>
         <nav className="flex flex-col px-2">
-          {SECTIONS.map((section) => (
+          {visibleSections.map((section) => (
             <button
               key={section.id}
               onClick={() => setActiveSection(section.id)}
