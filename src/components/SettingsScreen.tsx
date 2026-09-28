@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { ArrowLeft, BarChart3 } from "lucide-react";
+import { ArrowLeft, BarChart3, Shapes } from "lucide-react";
 import { StatisticsPanel } from "./StatisticsPanel";
+import { EntityTypeEditor } from "./EntityTypeEditor";
 
-type SettingsSection = "statistics";
+type SettingsSection = "statistics" | "entity-types";
 
-const SECTIONS: { id: SettingsSection; label: string }[] = [
-  { id: "statistics", label: "Statistics" },
+const SECTIONS: { id: SettingsSection; label: string; icon: typeof BarChart3 }[] = [
+  { id: "statistics", label: "Statistics", icon: BarChart3 },
+  { id: "entity-types", label: "Entity Types", icon: Shapes },
 ];
 
 export function SettingsScreen({ onBack }: { onBack: () => void }) {
@@ -33,7 +35,7 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
                   : "text-ivory-ghost hover:text-ivory hover:bg-ink-muted"
               }`}
             >
-              <BarChart3 size={14} />
+              <section.icon size={14} />
               {section.label}
             </button>
           ))}
@@ -41,6 +43,7 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
       </aside>
       <main className="flex-1 overflow-y-auto p-6">
         {activeSection === "statistics" && <StatisticsPanel />}
+        {activeSection === "entity-types" && <EntityTypeEditor />}
       </main>
     </div>
   );
