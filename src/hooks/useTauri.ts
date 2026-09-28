@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Document, Entity, EntityAsset, EntityFolder, EntityType, FieldDefinition, FieldValue, InitResult, KnownProject, OpenProjectResult, Relation, RelationType, ProjectStats } from "../types/core";
+import type { Document, DefaultField, Entity, EntityAsset, EntityFolder, EntityTemplate, EntityType, FieldDefinition, FieldValue, InitResult, KnownProject, OpenProjectResult, Relation, RelationType, ProjectStats } from "../types/core";
 
 export async function invokeInitializeCore(): Promise<InitResult> { return invoke<InitResult>("initialize_core"); }
 export async function invokeDeleteProject(projectId: string): Promise<void> { return invoke("delete_project", { projectId }); }
@@ -8,6 +8,10 @@ export async function invokeImportProject(archivePath: string): Promise<OpenProj
 export async function invokeCreateProject(name: string): Promise<OpenProjectResult> { return invoke("create_project", { name }); }
 export async function invokeOpenProject(path: string): Promise<OpenProjectResult> { return invoke("open_project", { path }); }
 export async function invokeListKnownProjects(): Promise<KnownProject[]> { return invoke<KnownProject[]>("list_known_projects"); }
+export async function invokeListEntityTemplates(): Promise<EntityTemplate[]> { return invoke<EntityTemplate[]>("list_entity_templates"); }
+export async function invokeCreateEntityTemplate(req: { name: string; name_plural: string; color: string; fields: DefaultField[] }): Promise<EntityTemplate> { return invoke<EntityTemplate>("create_entity_template", { req }); }
+export async function invokeUpdateEntityTemplate(id: string, req: { name?: string; name_plural?: string; color?: string; fields?: DefaultField[] }): Promise<EntityTemplate> { return invoke<EntityTemplate>("update_entity_template", { id, req }); }
+export async function invokeDeleteEntityTemplate(id: string): Promise<void> { return invoke("delete_entity_template", { id }); }
 
 export async function invokeListRootDocuments(projectId: string): Promise<Document[]> { return invoke<Document[]>("list_root_documents", { projectId }); }
 export async function invokeListChildDocuments(parentId: string): Promise<Document[]> { return invoke<Document[]>("list_child_documents", { parentId }); }
@@ -19,7 +23,7 @@ export async function invokeExportBook(projectId: string, format: ExportFormat, 
 
 export async function invokeListEntityTypes(projectId: string): Promise<EntityType[]> { return invoke<EntityType[]>("list_entity_types", { projectId }); }
 export async function invokeListEntitiesByType(projectId: string, entityTypeId: string): Promise<Entity[]> { return invoke<Entity[]>("list_entities_by_type", { projectId, entityTypeId }); }
-export async function invokeCreateEntity(projectId: string, req: { entity_type_id: string; name: string; folder_id?: string | null }): Promise<Entity> { return invoke<Entity>("create_entity", { projectId, req }); }
+export async function invokeCreateEntity(projectId: string, req: { entity_type_name: string; name: string; folder_id?: string | null }): Promise<Entity> { return invoke<Entity>("create_entity", { projectId, req }); }
 export async function invokeUpdateEntity(id: string, req: { name?: string; summary?: string; sort_order?: number; folder_id?: string | null }): Promise<Entity> { return invoke<Entity>("update_entity", { id, req }); }
 export async function invokeDeleteEntity(id: string): Promise<void> { return invoke("delete_entity", { id }); }
 export async function invokeListRootEntities(projectId: string): Promise<Entity[]> { return invoke<Entity[]>("list_root_entities", { projectId }); }
