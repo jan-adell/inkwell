@@ -1,12 +1,13 @@
-use tauri::State;
+use tauri::{Manager, State};
 
-use crate::db::entity_repo;
+use crate::db::{entity_repo, entity_templates};
 use crate::error::{InkwellError, Result};
 use crate::models::entity::{CreateEntityRequest, Entity, UpdateEntityRequest};
 use crate::state::AppState;
 
 #[tauri::command]
 pub async fn create_entity(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     project_id: String,
     req: CreateEntityRequest,
@@ -16,11 +17,18 @@ pub async fn create_entity(
             "Entity name cannot be empty".into(),
         ));
     }
+    let app_data_dir = app.path().app_data_dir().map_err(|e| {
+        InkwellError::Filesystem(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            e.to_string(),
+        ))
+    })?;
+    let templates = entity_templates::load(&app_data_dir)?;
     let conn = state
         .db
         .lock()
         .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
-    entity_repo::create(&conn, &project_id, &req, &[])
+    entity_repo::create(&conn, &project_id, &req, &templates)
 }
 
 #[tauri::command]
