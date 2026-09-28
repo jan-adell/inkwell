@@ -495,6 +495,14 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+
+        let custom_type = entity_type_repo::get(&conn, &custom_entity.entity_type_id).unwrap();
+        assert_eq!(custom_type.color.as_deref(), Some("#6B7280"));
+        assert_eq!(
+            custom_type.name_plural.as_deref(),
+            Some(custom_type.name.as_str())
+        );
+        assert_eq!(custom_type.name, "MyCustomType");
     }
 
     #[test]
