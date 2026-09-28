@@ -10,7 +10,6 @@ pub struct DefaultField {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
 pub struct EntityTemplate {
     pub id: String,
     pub name: String,
@@ -20,7 +19,6 @@ pub struct EntityTemplate {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct CreateEntityTemplateRequest {
     pub name: String,
     pub name_plural: String,
@@ -29,7 +27,6 @@ pub struct CreateEntityTemplateRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct UpdateEntityTemplateRequest {
     pub name: Option<String>,
     pub name_plural: Option<String>,

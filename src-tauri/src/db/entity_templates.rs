@@ -10,7 +10,6 @@ fn templates_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("entity_templates.json")
 }
 
-#[allow(dead_code)]
 pub fn load(app_data_dir: &Path) -> Result<Vec<EntityTemplate>> {
     let path = templates_path(app_data_dir);
     let content = match fs::read_to_string(&path) {
@@ -29,7 +28,6 @@ pub fn load(app_data_dir: &Path) -> Result<Vec<EntityTemplate>> {
     Ok(templates)
 }
 
-#[allow(dead_code)]
 fn save(app_data_dir: &Path, templates: &[EntityTemplate]) -> Result<()> {
     fs::create_dir_all(app_data_dir)?;
     let path = templates_path(app_data_dir);
@@ -40,7 +38,6 @@ fn save(app_data_dir: &Path, templates: &[EntityTemplate]) -> Result<()> {
     Ok(())
 }
 
-#[allow(dead_code)]
 pub fn create(app_data_dir: &Path, req: &CreateEntityTemplateRequest) -> Result<EntityTemplate> {
     let mut templates = load(app_data_dir)?;
     let template = EntityTemplate {
@@ -55,7 +52,6 @@ pub fn create(app_data_dir: &Path, req: &CreateEntityTemplateRequest) -> Result<
     Ok(template)
 }
 
-#[allow(dead_code)]
 pub fn update(
     app_data_dir: &Path,
     id: &str,
@@ -80,14 +76,12 @@ pub fn update(
     Ok(updated)
 }
 
-#[allow(dead_code)]
 pub fn delete(app_data_dir: &Path, id: &str) -> Result<()> {
     let mut templates = load(app_data_dir)?;
     templates.retain(|t| t.id != id);
     save(app_data_dir, &templates)
 }
 
-#[allow(dead_code)]
 fn field(name: &str, label: &str, field_type: &str) -> DefaultField {
     DefaultField {
         name: name.to_string(),
@@ -98,7 +92,6 @@ fn field(name: &str, label: &str, field_type: &str) -> DefaultField {
     }
 }
 
-#[allow(dead_code)]
 fn field_with_options(name: &str, label: &str, field_type: &str, options: &str) -> DefaultField {
     DefaultField {
         name: name.to_string(),
@@ -109,7 +102,6 @@ fn field_with_options(name: &str, label: &str, field_type: &str, options: &str) 
     }
 }
 
-#[allow(dead_code)]
 fn field_with_default(
     name: &str,
     label: &str,
@@ -125,7 +117,6 @@ fn field_with_default(
     }
 }
 
-#[allow(dead_code)]
 fn builtin_defaults() -> Vec<EntityTemplate> {
     vec![
         EntityTemplate {
