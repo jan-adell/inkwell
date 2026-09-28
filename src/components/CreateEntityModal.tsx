@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X, Plus, Folder } from "lucide-react";
 import { useAppStore } from "../store/appStore";
-import { invokeCreateEntity, invokeCreateEntityFolder } from "../hooks/useTauri";
+import { invokeCreateEntity, invokeCreateEntityFolder, invokeListEntityTypes } from "../hooks/useTauri";
 
 export function CreateEntityModal() {
   const {
@@ -11,6 +11,7 @@ export function CreateEntityModal() {
     entityTemplates,
     rootEntities,
     setRootEntities,
+    setEntityTypes,
     entityFolders,
     setEntityFolders,
     setSelectedEntityId,
@@ -28,6 +29,7 @@ export function CreateEntityModal() {
         name: "New Entity",
       });
       setRootEntities([...rootEntities, entity]);
+      invokeListEntityTypes(projectId).then(setEntityTypes).catch(console.error);
       setSelectedEntityId(entity.id);
       setShowCreateEntityModal(false);
     } finally {
