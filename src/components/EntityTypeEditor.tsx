@@ -41,6 +41,52 @@ function fieldsError(fields: DefaultField[]): string | null {
   return duplicate ? `Two properties share the name "${duplicate}".` : null;
 }
 
+function formatSelectOptions(options: string | null): string {
+  if (!options) return "";
+  try {
+    const parsed = JSON.parse(options) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string").join(", ")
+      : "";
+  } catch {
+    return "";
+  }
+}
+
+function serializeSelectOptions(text: string): string | null {
+  const choices = text.split(",").map((c) => c.trim()).filter(Boolean);
+  return choices.length > 0 ? JSON.stringify(choices) : null;
+}
+
+function SelectOptionsInput({
+  options,
+  onChange,
+}: {
+  options: string | null;
+  onChange: (options: string | null) => void;
+}) {
+  const [draft, setDraft] = useState(() => formatSelectOptions(options));
+  const value = serializeSelectOptions(draft) === options ? draft : formatSelectOptions(options);
+
+  return (
+    <input
+      value={value}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        onChange(serializeSelectOptions(e.target.value));
+      }}
+      placeholder="Option A, Option B, Option C"
+      aria-label="Select options"
+      className="w-full bg-ink-muted text-ivory text-xs px-2 py-1 rounded focus:outline-none"
+    />
+  );
+}
+
+function applyFieldPatch(field: DefaultField, patch: Partial<DefaultField>): DefaultField {
+  const typeChanged = patch.field_type !== undefined && patch.field_type !== field.field_type;
+  return { ...field, ...(typeChanged ? { options: null } : {}), ...patch };
+}
+
 function emptyField(): DefaultField {
   return { name: "", label: "", field_type: "text", options: null, default_value: null };
 }
@@ -62,7 +108,7 @@ function TemplateForm({
   const [saving, setSaving] = useState(false);
 
   function updateField(index: number, patch: Partial<DefaultField>) {
-    setFields(fields.map((f, i) => (i === index ? { ...f, ...patch } : f)));
+    setFields(fields.map((f, i) => (i === index ? applyFieldPatch(f, patch) : f)));
   }
 
   function removeField(index: number) {
@@ -153,42 +199,50 @@ function TemplateForm({
         {fields.map((field, i) => (
           <div
             key={i}
-            className="flex items-center gap-2 px-3 py-2 rounded border border-ink-border bg-ink-surface"
+            className="space-y-1.5 px-3 py-2 rounded border border-ink-border bg-ink-surface"
           >
-            <span className="w-20 flex-shrink-0 text-[11px] font-mono text-ivory-ghost truncate">
-              {field.name || "—"}
-            </span>
-            <input
-              value={field.label}
-              onChange={(e) =>
-                updateField(i, {
-                  label: e.target.value,
-                  name: e.target.value.toLowerCase().replace(/\s+/g, "_"),
-                })
-              }
-              placeholder="Property label"
-              className="flex-1 min-w-0 bg-transparent text-ivory text-sm font-medium px-1 py-1 focus:outline-none"
-            />
-            <select
-              value={field.field_type}
-              onChange={(e) => updateField(i, { field_type: e.target.value as FieldType })}
-              className="text-[11px] font-mono uppercase tracking-wider rounded-full px-2.5 py-1 border-none focus:outline-none cursor-pointer flex-shrink-0"
-              style={{
-                color: FIELD_TYPE_COLORS[field.field_type],
-                backgroundColor: `${FIELD_TYPE_COLORS[field.field_type]}22`,
-              }}
-            >
-              {FIELD_TYPES.map((ft) => (
-                <option key={ft.type} value={ft.type}>{ft.label}</option>
-              ))}
-            </select>
-            <button
-              onClick={() => removeField(i)}
-              className="p-1 text-ivory-ghost hover:text-crimson flex-shrink-0"
-              aria-label={`Remove property ${field.label || i + 1}`}
-            >
-              <Trash2 size={12} />
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="w-20 flex-shrink-0 text-[11px] font-mono text-ivory-ghost truncate">
+                {field.name || "—"}
+              </span>
+              <input
+                value={field.label}
+                onChange={(e) =>
+                  updateField(i, {
+                    label: e.target.value,
+                    name: e.target.value.toLowerCase().replace(/\s+/g, "_"),
+                  })
+                }
+                placeholder="Property label"
+                className="flex-1 min-w-0 bg-transparent text-ivory text-sm font-medium px-1 py-1 focus:outline-none"
+              />
+              <select
+                value={field.field_type}
+                onChange={(e) => updateField(i, { field_type: e.target.value as FieldType })}
+                className="text-[11px] font-mono uppercase tracking-wider rounded-full px-2.5 py-1 border-none focus:outline-none cursor-pointer flex-shrink-0"
+                style={{
+                  color: FIELD_TYPE_COLORS[field.field_type],
+                  backgroundColor: `${FIELD_TYPE_COLORS[field.field_type]}22`,
+                }}
+              >
+                {FIELD_TYPES.map((ft) => (
+                  <option key={ft.type} value={ft.type}>{ft.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => removeField(i)}
+                className="p-1 text-ivory-ghost hover:text-crimson flex-shrink-0"
+                aria-label={`Remove property ${field.label || i + 1}`}
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+            {field.field_type === "select" && (
+              <SelectOptionsInput
+                options={field.options}
+                onChange={(options) => updateField(i, { options })}
+              />
+            )}
           </div>
         ))}
       </div>
