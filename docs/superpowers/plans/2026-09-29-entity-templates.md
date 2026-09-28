@@ -1949,6 +1949,20 @@ const FIELD_TYPES: { label: string; type: FieldType }[] = [
   { label: "Yes/No", type: "boolean" },
 ];
 
+const FIELD_TYPE_COLORS: Record<FieldType, string> = {
+  text: "#4A9FD4",
+  textarea: "#4EA86B",
+  number: "#E8883A",
+  date: "#D4A24A",
+  select: "#8B6FE8",
+  boolean: "#D44A7A",
+  multiselect: "#6B7280",
+  entity_ref: "#6B7280",
+  image: "#6B7280",
+  url: "#6B7280",
+  color: "#6B7280",
+};
+
 function emptyField(): DefaultField {
   return { name: "", label: "", field_type: "text", options: null, default_value: null };
 }
@@ -2038,9 +2052,29 @@ function TemplateForm({
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs text-ivory-ghost uppercase tracking-wider">Default Properties</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-ivory-ghost uppercase tracking-wider">Default Properties</p>
+          <button
+            onClick={() => setFields([...fields, emptyField()])}
+            className="flex items-center gap-1 text-xs bg-gold/20 text-gold rounded px-2 py-1 hover:bg-gold/30 transition-colors"
+          >
+            <Plus size={12} />
+            Add Field
+          </button>
+        </div>
+
+        {fields.length === 0 && (
+          <p className="text-xs text-ivory-ghost italic px-1">No default properties yet.</p>
+        )}
+
         {fields.map((field, i) => (
-          <div key={i} className="flex items-center gap-1.5">
+          <div
+            key={i}
+            className="flex items-center gap-2 px-3 py-2 rounded border border-ink-border bg-ink-surface"
+          >
+            <span className="w-20 flex-shrink-0 text-[11px] font-mono text-ivory-ghost truncate">
+              {field.name || "—"}
+            </span>
             <input
               value={field.label}
               onChange={(e) =>
@@ -2050,12 +2084,16 @@ function TemplateForm({
                 })
               }
               placeholder="Property label"
-              className="flex-1 bg-ink-muted text-ivory text-xs px-2 py-1 rounded focus:outline-none"
+              className="flex-1 min-w-0 bg-transparent text-ivory text-sm font-medium px-1 py-1 focus:outline-none"
             />
             <select
               value={field.field_type}
               onChange={(e) => updateField(i, { field_type: e.target.value as FieldType })}
-              className="bg-ink-muted text-ivory text-xs px-1.5 py-1 rounded focus:outline-none"
+              className="text-[11px] font-mono uppercase tracking-wider rounded-full px-2.5 py-1 border-none focus:outline-none cursor-pointer flex-shrink-0"
+              style={{
+                color: FIELD_TYPE_COLORS[field.field_type],
+                backgroundColor: `${FIELD_TYPE_COLORS[field.field_type]}22`,
+              }}
             >
               {FIELD_TYPES.map((ft) => (
                 <option key={ft.type} value={ft.type}>{ft.label}</option>
@@ -2063,20 +2101,13 @@ function TemplateForm({
             </select>
             <button
               onClick={() => removeField(i)}
-              className="p-1 text-ivory-ghost hover:text-crimson"
+              className="p-1 text-ivory-ghost hover:text-crimson flex-shrink-0"
               aria-label={`Remove property ${field.label || i + 1}`}
             >
               <Trash2 size={12} />
             </button>
           </div>
         ))}
-        <button
-          onClick={() => setFields([...fields, emptyField()])}
-          className="flex items-center gap-1 text-xs text-ivory-ghost hover:text-ivory"
-        >
-          <Plus size={12} />
-          Add property
-        </button>
       </div>
 
       {error && <p className="text-[10px] text-crimson">{error}</p>}
