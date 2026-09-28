@@ -1,7 +1,7 @@
 # Entity Templates (Application-Level Entity Editor) — Design Spec
 
 **Date:** 2026-09-29
-**Branch:** feature/entity_defaults
+**Branch:** feature/entity_editor
 **Status:** Approved for implementation
 
 ---
