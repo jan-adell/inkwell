@@ -79,7 +79,6 @@ pub fn create(app_data_dir: &Path, req: &CreateEntityTemplateRequest) -> Result<
     let template = EntityTemplate {
         id: ulid::Ulid::new().to_string(),
         name: req.name.clone(),
-        name_plural: req.name_plural.clone(),
         color: req.color.clone(),
         fields: req.fields.clone(),
     };
@@ -109,7 +108,6 @@ pub fn update(
     let updated = EntityTemplate {
         id: current.id,
         name: req.name.clone().unwrap_or(current.name),
-        name_plural: req.name_plural.clone().unwrap_or(current.name_plural),
         color: req.color.clone().unwrap_or(current.color),
         fields: req.fields.clone().unwrap_or(current.fields),
     };
@@ -164,7 +162,6 @@ fn builtin_defaults() -> Vec<EntityTemplate> {
         EntityTemplate {
             id: ulid::Ulid::new().to_string(),
             name: "Character".to_string(),
-            name_plural: "Characters".to_string(),
             color: "#8B6FE8".to_string(),
             fields: vec![
                 field("birth_date", "Birth Date", "date"),
@@ -183,7 +180,6 @@ fn builtin_defaults() -> Vec<EntityTemplate> {
         EntityTemplate {
             id: ulid::Ulid::new().to_string(),
             name: "Location".to_string(),
-            name_plural: "Locations".to_string(),
             color: "#4EA86B".to_string(),
             fields: vec![
                 field("description", "Description", "textarea"),
@@ -202,7 +198,6 @@ fn builtin_defaults() -> Vec<EntityTemplate> {
         EntityTemplate {
             id: ulid::Ulid::new().to_string(),
             name: "Item".to_string(),
-            name_plural: "Items".to_string(),
             color: "#E8883A".to_string(),
             fields: vec![
                 field("description", "Description", "textarea"),
@@ -221,7 +216,6 @@ fn builtin_defaults() -> Vec<EntityTemplate> {
         EntityTemplate {
             id: ulid::Ulid::new().to_string(),
             name: "Event".to_string(),
-            name_plural: "Events".to_string(),
             color: "#4A9FD4".to_string(),
             fields: vec![
                 field("description", "Description", "textarea"),
@@ -240,7 +234,6 @@ fn builtin_defaults() -> Vec<EntityTemplate> {
         EntityTemplate {
             id: ulid::Ulid::new().to_string(),
             name: "Organization".to_string(),
-            name_plural: "Organizations".to_string(),
             color: "#D44A7A".to_string(),
             fields: vec![
                 field("description", "Description", "textarea"),
@@ -292,7 +285,6 @@ mod tests {
         load(dir.path()).unwrap();
         let req = CreateEntityTemplateRequest {
             name: "Planet".to_string(),
-            name_plural: "Planets".to_string(),
             color: "#00FFAA".to_string(),
             fields: vec![DefaultField {
                 name: "radius_km".to_string(),
@@ -323,7 +315,6 @@ mod tests {
 
         let req = UpdateEntityTemplateRequest {
             name: Some("Protagonist".to_string()),
-            name_plural: None,
             color: None,
             fields: None,
         };
@@ -342,7 +333,6 @@ mod tests {
         load(dir.path()).unwrap();
         let req = UpdateEntityTemplateRequest {
             name: Some("X".to_string()),
-            name_plural: None,
             color: None,
             fields: None,
         };
@@ -357,7 +347,6 @@ mod tests {
     fn create_request(name: &str, fields: Vec<DefaultField>) -> CreateEntityTemplateRequest {
         CreateEntityTemplateRequest {
             name: name.to_string(),
-            name_plural: format!("{name}s"),
             color: "#00FFAA".to_string(),
             fields,
         }
@@ -366,7 +355,6 @@ mod tests {
     fn fields_update(fields: Vec<DefaultField>) -> UpdateEntityTemplateRequest {
         UpdateEntityTemplateRequest {
             name: None,
-            name_plural: None,
             color: None,
             fields: Some(fields),
         }
@@ -475,7 +463,6 @@ mod tests {
             &location.id,
             &UpdateEntityTemplateRequest {
                 name: Some("Character".to_string()),
-                name_plural: None,
                 color: None,
                 fields: None,
             },
@@ -497,7 +484,6 @@ mod tests {
             &character.id,
             &UpdateEntityTemplateRequest {
                 name: Some(character.name.clone()),
-                name_plural: None,
                 color: Some("#000000".to_string()),
                 fields: None,
             },

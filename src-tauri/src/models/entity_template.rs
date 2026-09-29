@@ -13,7 +13,6 @@ pub struct DefaultField {
 pub struct EntityTemplate {
     pub id: String,
     pub name: String,
-    pub name_plural: String,
     pub color: String,
     pub fields: Vec<DefaultField>,
 }
@@ -21,7 +20,6 @@ pub struct EntityTemplate {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateEntityTemplateRequest {
     pub name: String,
-    pub name_plural: String,
     pub color: String,
     pub fields: Vec<DefaultField>,
 }
@@ -29,7 +27,6 @@ pub struct CreateEntityTemplateRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateEntityTemplateRequest {
     pub name: Option<String>,
-    pub name_plural: Option<String>,
     pub color: Option<String>,
     pub fields: Option<Vec<DefaultField>>,
 }

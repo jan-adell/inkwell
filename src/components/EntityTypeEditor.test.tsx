@@ -25,7 +25,6 @@ function makeTemplate(overrides: Partial<EntityTemplate> = {}): EntityTemplate {
   return {
     id: "tmpl1",
     name: "Character",
-    name_plural: "Characters",
     color: "#8B6FE8",
     fields: [
       { name: "birth_date", label: "Birth Date", field_type: "date", options: null, default_value: null },
@@ -52,7 +51,7 @@ describe("EntityTypeEditor", () => {
 
   it("creates a new template", async () => {
     const user = userEvent.setup();
-    mockCreate.mockResolvedValue(makeTemplate({ id: "tmpl2", name: "Planet", name_plural: "Planets", color: "#00FFAA", fields: [] }));
+    mockCreate.mockResolvedValue(makeTemplate({ id: "tmpl2", name: "Planet", color: "#00FFAA", fields: [] }));
     render(<EntityTypeEditor />);
 
     await user.click(screen.getByRole("button", { name: /add entity type/i }));

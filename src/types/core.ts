@@ -63,7 +63,6 @@ export interface DefaultField {
 export interface EntityTemplate {
   id: string;
   name: string;
-  name_plural: string;
   color: string;
   fields: DefaultField[];
 }

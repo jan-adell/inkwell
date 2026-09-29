@@ -15,7 +15,7 @@ const folder = (id: string): EntityFolder => ({
 });
 
 const template = (id: string, name: string): EntityTemplate => ({
-  id, name, name_plural: `${name}s`, color: "#8B6FE8", fields: [],
+  id, name, color: "#8B6FE8", fields: [],
 });
 
 const entityType = (id: string, name: string): EntityType => ({

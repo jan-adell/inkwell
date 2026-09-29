@@ -42,18 +42,13 @@ pub fn create(
     validate_visibility(visibility)?;
 
     let matching_template = templates.iter().find(|t| t.name == req.entity_type_name);
-    let (name_plural, color) = matching_template
-        .map(|t| (t.name_plural.as_str(), t.color.as_str()))
-        .unwrap_or((req.entity_type_name.as_str(), "#6B7280"));
+    let color = matching_template
+        .map(|t| t.color.as_str())
+        .unwrap_or("#6B7280");
 
     let tx = conn.unchecked_transaction()?;
-    let entity_type = entity_type_repo::get_or_create_by_name(
-        &tx,
-        project_id,
-        &req.entity_type_name,
-        name_plural,
-        color,
-    )?;
+    let entity_type =
+        entity_type_repo::get_or_create_by_name(&tx, project_id, &req.entity_type_name, color)?;
 
     let id = ulid::Ulid::new().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -295,7 +290,6 @@ mod tests {
         EntityTemplate {
             id: "tmpl-character".to_string(),
             name: "Character".to_string(),
-            name_plural: "Characters".to_string(),
             color: "#8B6FE8".to_string(),
             fields: vec![
                 DefaultField {
@@ -498,10 +492,7 @@ mod tests {
 
         let custom_type = entity_type_repo::get(&conn, &custom_entity.entity_type_id).unwrap();
         assert_eq!(custom_type.color.as_deref(), Some("#6B7280"));
-        assert_eq!(
-            custom_type.name_plural.as_deref(),
-            Some(custom_type.name.as_str())
-        );
+        assert_eq!(custom_type.name_plural, None);
         assert_eq!(custom_type.name, "MyCustomType");
     }
 
@@ -554,7 +545,6 @@ mod tests {
         let template = EntityTemplate {
             id: "tmpl-planet".to_string(),
             name: "Planet".to_string(),
-            name_plural: "Planets".to_string(),
             color: "#00FFAA".to_string(),
             fields: vec![],
         };
@@ -563,7 +553,7 @@ mod tests {
         let types = entity_type_repo::list(&conn, &pid).unwrap();
         assert_eq!(types.len(), 1);
         assert_eq!(types[0].name, "Planet");
-        assert_eq!(types[0].name_plural.as_deref(), Some("Planets"));
+        assert_eq!(types[0].name_plural, None);
         assert_eq!(types[0].color.as_deref(), Some("#00FFAA"));
     }
 
@@ -586,7 +576,6 @@ mod tests {
         let template = EntityTemplate {
             id: "tmpl-broken".to_string(),
             name: "Broken".to_string(),
-            name_plural: "Brokens".to_string(),
             color: "#123456".to_string(),
             fields: vec![notes.clone(), notes],
         };

@@ -101,7 +101,6 @@ function TemplateForm({
   onSaved: (t: EntityTemplate) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
-  const [namePlural, setNamePlural] = useState(initial?.name_plural ?? "");
   const [color, setColor] = useState(initial?.color ?? "#8B6FE8");
   const [fields, setFields] = useState<DefaultField[]>(initial?.fields ?? []);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +130,6 @@ function TemplateForm({
     try {
       const payload = {
         name: trimmed,
-        name_plural: namePlural.trim() || `${trimmed}s`,
         color,
         fields,
       };
@@ -161,12 +159,6 @@ function TemplateForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Name"
-        className="w-full bg-ink-muted text-ivory text-sm px-2 py-1 rounded focus:outline-none"
-      />
-      <input
-        value={namePlural}
-        onChange={(e) => setNamePlural(e.target.value)}
-        placeholder="Plural (optional)"
         className="w-full bg-ink-muted text-ivory text-sm px-2 py-1 rounded focus:outline-none"
       />
       <div className="flex items-center gap-2">

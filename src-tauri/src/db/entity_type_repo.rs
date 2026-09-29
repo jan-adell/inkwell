@@ -120,7 +120,6 @@ pub fn get_or_create_by_name(
     conn: &Connection,
     project_id: &str,
     name: &str,
-    name_plural: &str,
     color: &str,
 ) -> Result<EntityType> {
     let existing = list(conn, project_id)?;
@@ -138,7 +137,7 @@ pub fn get_or_create_by_name(
         project_id,
         &CreateEntityTypeRequest {
             name: name.to_string(),
-            name_plural: Some(name_plural.to_string()),
+            name_plural: None,
             icon: None,
             color: Some(color.to_string()),
             description: None,
@@ -291,9 +290,9 @@ mod tests {
     fn get_or_create_by_name_creates_when_missing() {
         let conn = test_conn();
         let pid = seed_project(&conn);
-        let created = get_or_create_by_name(&conn, &pid, "Planet", "Planets", "#00FFAA").unwrap();
+        let created = get_or_create_by_name(&conn, &pid, "Planet", "#00FFAA").unwrap();
         assert_eq!(created.name, "Planet");
-        assert_eq!(created.name_plural.as_deref(), Some("Planets"));
+        assert_eq!(created.name_plural, None);
         assert_eq!(created.color.as_deref(), Some("#00FFAA"));
         assert_eq!(created.sort_order, 0);
 
@@ -319,8 +318,7 @@ mod tests {
         )
         .unwrap();
 
-        let found =
-            get_or_create_by_name(&conn, &pid, "Character", "Different Plural", "#FFFFFF").unwrap();
+        let found = get_or_create_by_name(&conn, &pid, "Character", "#FFFFFF").unwrap();
         assert_eq!(found.id, original.id);
         assert_eq!(found.name_plural.as_deref(), Some("Characters"));
         assert_eq!(found.color.as_deref(), Some("#8B6FE8"));
@@ -333,9 +331,8 @@ mod tests {
     fn get_or_create_by_name_assigns_next_sort_order() {
         let conn = test_conn();
         let pid = seed_project(&conn);
-        get_or_create_by_name(&conn, &pid, "Character", "Characters", "#8B6FE8").unwrap();
-        let second =
-            get_or_create_by_name(&conn, &pid, "Location", "Locations", "#4EA86B").unwrap();
+        get_or_create_by_name(&conn, &pid, "Character", "#8B6FE8").unwrap();
+        let second = get_or_create_by_name(&conn, &pid, "Location", "#4EA86B").unwrap();
         assert_eq!(second.sort_order, 1);
     }
 

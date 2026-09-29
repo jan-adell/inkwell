@@ -9,8 +9,8 @@ export async function invokeCreateProject(name: string): Promise<OpenProjectResu
 export async function invokeOpenProject(path: string): Promise<OpenProjectResult> { return invoke("open_project", { path }); }
 export async function invokeListKnownProjects(): Promise<KnownProject[]> { return invoke<KnownProject[]>("list_known_projects"); }
 export async function invokeListEntityTemplates(): Promise<EntityTemplate[]> { return invoke<EntityTemplate[]>("list_entity_templates"); }
-export async function invokeCreateEntityTemplate(req: { name: string; name_plural: string; color: string; fields: DefaultField[] }): Promise<EntityTemplate> { return invoke<EntityTemplate>("create_entity_template", { req }); }
-export async function invokeUpdateEntityTemplate(id: string, req: { name?: string; name_plural?: string; color?: string; fields?: DefaultField[] }): Promise<EntityTemplate> { return invoke<EntityTemplate>("update_entity_template", { id, req }); }
+export async function invokeCreateEntityTemplate(req: { name: string; color: string; fields: DefaultField[] }): Promise<EntityTemplate> { return invoke<EntityTemplate>("create_entity_template", { req }); }
+export async function invokeUpdateEntityTemplate(id: string, req: { name?: string; color?: string; fields?: DefaultField[] }): Promise<EntityTemplate> { return invoke<EntityTemplate>("update_entity_template", { id, req }); }
 export async function invokeDeleteEntityTemplate(id: string): Promise<void> { return invoke("delete_entity_template", { id }); }
 
 export async function invokeListRootDocuments(projectId: string): Promise<Document[]> { return invoke<Document[]>("list_root_documents", { projectId }); }

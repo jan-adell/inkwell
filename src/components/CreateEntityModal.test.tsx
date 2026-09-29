@@ -21,7 +21,6 @@ function makeTemplate(overrides: Partial<EntityTemplate> = {}): EntityTemplate {
   return {
     id: "tmpl1",
     name: "Character",
-    name_plural: "Characters",
     color: "#8B6FE8",
     fields: [],
     ...overrides,
