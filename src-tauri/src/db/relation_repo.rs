@@ -158,6 +158,17 @@ pub fn list_incoming(conn: &Connection, entity_id: &str) -> Result<Vec<Relation>
     rows.map(|r| r.map_err(InkwellError::Database)).collect()
 }
 
+pub fn list_by_project(conn: &Connection, project_id: &str) -> Result<Vec<Relation>> {
+    let mut stmt = conn.prepare(
+        "SELECT id,project_id,source_entity_id,relation_type_id,target_entity_id,
+                notes,sort_order,created_at,deleted_at
+         FROM relations WHERE project_id=?1 AND deleted_at IS NULL
+         ORDER BY sort_order ASC, created_at ASC",
+    )?;
+    let rows = stmt.query_map(params![project_id], row_to_relation)?;
+    rows.map(|r| r.map_err(InkwellError::Database)).collect()
+}
+
 pub fn delete(conn: &Connection, id: &str) -> Result<()> {
     get(conn, id)?;
     let now = chrono::Utc::now().to_rfc3339();
@@ -343,6 +354,48 @@ mod tests {
         let incoming = list_incoming(&conn, &f.e2).unwrap();
         assert_eq!(incoming.len(), 1);
         assert_eq!(incoming[0].source_entity_id, f.e1);
+    }
+
+    fn relation_request(f: &Fixture, source: &str, target: &str) -> CreateRelationRequest {
+        CreateRelationRequest {
+            source_entity_id: source.to_string(),
+            relation_type_id: f.rtid.clone(),
+            target_entity_id: target.to_string(),
+            notes: None,
+            sort_order: None,
+        }
+    }
+
+    #[test]
+    fn list_by_project_returns_only_active_relations_of_that_project() {
+        let conn = test_conn();
+        let f = setup(&conn);
+        create(&conn, &f.pid, &relation_request(&f, &f.e1, &f.e2)).unwrap();
+        let removed = create(&conn, &f.pid, &relation_request(&f, &f.e2, &f.e1)).unwrap();
+        delete(&conn, &removed.id).unwrap();
+
+        conn.execute("INSERT INTO projects(id,name,created_at,updated_at) VALUES('01Q','Q','2026-01-01','2026-01-01')", []).unwrap();
+        conn.execute("INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at) VALUES('01QET','01Q','T',0,0,'2026-01-01','2026-01-01')", []).unwrap();
+        conn.execute("INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at) VALUES('01QE1','01Q','01QET','A','private',0,'2026-01-01','2026-01-01')", []).unwrap();
+        conn.execute("INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at) VALUES('01QE2','01Q','01QET','B','private',0,'2026-01-01','2026-01-01')", []).unwrap();
+        conn.execute("INSERT INTO relation_types(id,project_id,name,label,is_system,created_at) VALUES('01QRT','01Q','x','X',0,'2026-01-01')", []).unwrap();
+        create(
+            &conn,
+            "01Q",
+            &CreateRelationRequest {
+                source_entity_id: "01QE1".into(),
+                relation_type_id: "01QRT".into(),
+                target_entity_id: "01QE2".into(),
+                notes: None,
+                sort_order: None,
+            },
+        )
+        .unwrap();
+
+        let relations = list_by_project(&conn, &f.pid).unwrap();
+        assert_eq!(relations.len(), 1);
+        assert_eq!(relations[0].source_entity_id, f.e1);
+        assert_eq!(relations[0].target_entity_id, f.e2);
     }
 
     #[test]

@@ -28,6 +28,18 @@ pub async fn delete_relation(state: State<'_, AppState>, id: String) -> Result<(
 }
 
 #[tauri::command]
+pub async fn list_relations(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<Relation>> {
+    let conn = state
+        .db
+        .lock()
+        .map_err(|_| InkwellError::Internal("DB lock poisoned".into()))?;
+    relation_repo::list_by_project(&conn, &project_id)
+}
+
+#[tauri::command]
 pub async fn list_outgoing_relations(
     state: State<'_, AppState>,
     entity_id: String,

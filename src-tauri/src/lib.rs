@@ -52,6 +52,7 @@ pub fn run() {
             // Relations
             commands::relations::create_relation,
             commands::relations::delete_relation,
+            commands::relations::list_relations,
             commands::relations::list_outgoing_relations,
             commands::relations::list_incoming_relations,
             // Documents
