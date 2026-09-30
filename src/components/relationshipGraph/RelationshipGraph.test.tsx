@@ -78,6 +78,14 @@ describe("RelationshipGraph", () => {
     expect(await screen.findByText("Kael")).toBeInTheDocument();
   });
 
+  it("tells the author when the relations could not be loaded", async () => {
+    mockListRelations.mockRejectedValue(new Error("db locked"));
+
+    render(<RelationshipGraph />);
+
+    expect(await screen.findByText(/could not load relations/i)).toBeInTheDocument();
+  });
+
   it("shows an empty state when the project has no relations", async () => {
     render(<RelationshipGraph />);
 

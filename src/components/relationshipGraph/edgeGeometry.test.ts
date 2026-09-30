@@ -21,6 +21,19 @@ describe("rectBorderPoint", () => {
   });
 });
 
+describe("degenerate geometry", () => {
+  it("returns the node center when the target sits exactly on it", () => {
+    expect(rectBorderPoint(rect(-50, -20), { x: 0, y: 0 })).toEqual({ x: 0, y: 0 });
+  });
+
+  it("keeps a bowed edge between coincident points finite", () => {
+    const { path, labelX, labelY } = edgePath({ x: 10, y: 10 }, { x: 10, y: 10 }, 20);
+
+    expect(path).toBe("M 10 10 Q 10 10 10 10");
+    expect([labelX, labelY]).toEqual([10, 10]);
+  });
+});
+
 describe("floatingEndpoints", () => {
   it("connects the facing borders of two nodes on the same row", () => {
     const { start, end } = floatingEndpoints(rect(0, 0), rect(300, 0));

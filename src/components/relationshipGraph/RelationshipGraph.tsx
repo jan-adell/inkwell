@@ -27,10 +27,15 @@ export function RelationshipGraph() {
     setSelectedEntityId,
   } = useAppStore();
   const [relations, setRelations] = useState<Relation[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
-    invokeListRelations(projectId).then(setRelations).catch(console.error);
+    setLoadFailed(false);
+    invokeListRelations(projectId).then(setRelations).catch((error) => {
+      console.error(error);
+      setLoadFailed(true);
+    });
     invokeListRelationTypes(projectId).then(setRelationTypes).catch(console.error);
   }, [projectId, setRelationTypes]);
 
@@ -69,6 +74,14 @@ export function RelationshipGraph() {
     });
     return { nodes: flowNodes, edges: flowEdges };
   }, [graph, positions, selectedEntityId]);
+
+  if (loadFailed) {
+    return (
+      <main className="flex-1 flex flex-col items-center justify-center bg-ink-void">
+        <p className="text-sm text-ivory-ghost">Could not load relations. Reopen the graph to try again.</p>
+      </main>
+    );
+  }
 
   if (relations === null) return <main className="flex-1 bg-ink-void" />;
 
