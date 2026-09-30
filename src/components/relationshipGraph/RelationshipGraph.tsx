@@ -6,6 +6,8 @@ import { useAppStore } from "../../store/appStore";
 import { invokeListRelations, invokeListRelationTypes } from "../../hooks/useTauri";
 import type { Relation } from "../../types/core";
 import { buildGraph } from "./buildGraph";
+import { focusGraph } from "./focusGraph";
+import { edgeLabelProps, edgeStyle, nodeStyle } from "./graphStyle";
 import { layoutGraph } from "./layoutGraph";
 
 export function RelationshipGraph() {
@@ -15,6 +17,7 @@ export function RelationshipGraph() {
     entitiesByFolder,
     entityTypes,
     relationTypes,
+    selectedEntityId,
     setRelationTypes,
     setSelectedEntityId,
   } = useAppStore();
@@ -26,27 +29,38 @@ export function RelationshipGraph() {
     invokeListRelationTypes(projectId).then(setRelationTypes).catch(console.error);
   }, [projectId, setRelationTypes]);
 
-  const { nodes, edges } = useMemo(() => {
+  const { graph, positions } = useMemo(() => {
     const entities = [...rootEntities, ...Object.values(entitiesByFolder).flat()];
-    const graph = buildGraph({ entities, relations: relations ?? [], relationTypes, entityTypes });
-    const positions = layoutGraph(graph.nodes, graph.edges);
+    const built = buildGraph({ entities, relations: relations ?? [], relationTypes, entityTypes });
+    return { graph: built, positions: layoutGraph(built.nodes, built.edges) };
+  }, [rootEntities, entitiesByFolder, entityTypes, relationTypes, relations]);
+
+  const { nodes, edges } = useMemo(() => {
+    const focus = focusGraph(graph.edges, selectedEntityId);
 
     const flowNodes: Node[] = graph.nodes.map((node) => ({
       id: node.id,
       position: positions[node.id],
       data: { label: node.name },
-      style: { border: `2px solid ${node.color}`, background: "var(--ink-surface, #1c1c1c)", color: "inherit" },
+      style: nodeStyle(node.color, {
+        selected: node.id === selectedEntityId,
+        dimmed: focus !== null && !focus.nodeIds.has(node.id),
+      }),
     }));
-    const flowEdges: Edge[] = graph.edges.map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      label: edge.label,
-      style: { stroke: edge.color },
-      markerEnd: { type: MarkerType.ArrowClosed, color: edge.color },
-    }));
+    const flowEdges: Edge[] = graph.edges.map((edge) => {
+      const dimmed = focus !== null && !focus.edgeIds.has(edge.id);
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        label: edge.label,
+        style: edgeStyle(edge.color, { focused: focus?.edgeIds.has(edge.id) ?? false, dimmed }),
+        ...edgeLabelProps({ dimmed }),
+        markerEnd: { type: MarkerType.ArrowClosed, color: edge.color, width: 18, height: 18 },
+      };
+    });
     return { nodes: flowNodes, edges: flowEdges };
-  }, [rootEntities, entitiesByFolder, entityTypes, relationTypes, relations]);
+  }, [graph, positions, selectedEntityId]);
 
   if (relations !== null && relations.length === 0) {
     return (
@@ -67,6 +81,7 @@ export function RelationshipGraph() {
         fitView
         colorMode="dark"
         onNodeClick={(_, node) => setSelectedEntityId(node.id)}
+        onPaneClick={() => setSelectedEntityId(null)}
       >
         <Background />
         <Controls showInteractive={false} />

@@ -82,6 +82,53 @@ describe("RelationshipGraph", () => {
     expect(await screen.findByText("Valthera")).toBeInTheDocument();
   });
 
+  describe("focus on selection", () => {
+    const nodeOf = async (name: string) =>
+      (await screen.findByText(name)).closest(".react-flow__node") as HTMLElement;
+
+    beforeEach(() => {
+      mockListRelations.mockResolvedValue([RELATION]);
+      useAppStore.setState({
+        rootEntities: [entity("e1", "Kael"), entity("e2", "Valthera"), entity("e3", "Hermit")],
+      });
+    });
+
+    it("dims nothing while no entity is selected", async () => {
+      render(<RelationshipGraph />);
+
+      expect((await nodeOf("Hermit")).style.opacity).toBe("1");
+    });
+
+    it("dims entities unrelated to the selected one and keeps its neighbours visible", async () => {
+      useAppStore.setState({ selectedEntityId: "e1" });
+
+      render(<RelationshipGraph />);
+
+      expect((await nodeOf("Hermit")).style.opacity).toBe("0.2");
+      expect((await nodeOf("Valthera")).style.opacity).toBe("1");
+      expect((await nodeOf("Kael")).style.opacity).toBe("1");
+    });
+
+    it("dims nothing when the selected entity has no relations", async () => {
+      useAppStore.setState({ selectedEntityId: "e3" });
+
+      render(<RelationshipGraph />);
+
+      expect((await nodeOf("Kael")).style.opacity).toBe("1");
+    });
+  });
+
+  it("clears the selection when the empty canvas is clicked", async () => {
+    mockListRelations.mockResolvedValue([RELATION]);
+    useAppStore.setState({ selectedEntityId: "e1" });
+
+    const { container } = render(<RelationshipGraph />);
+    await screen.findByText("Kael");
+    fireEvent.click(container.querySelector(".react-flow__pane") as HTMLElement);
+
+    expect(useAppStore.getState().selectedEntityId).toBeNull();
+  });
+
   it("selects the entity when its node is clicked", async () => {
     mockListRelations.mockResolvedValue([RELATION]);
 
