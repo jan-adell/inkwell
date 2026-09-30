@@ -21,7 +21,7 @@ pub struct Entity {
 /// Input for creating an entity.
 #[derive(Debug, Deserialize)]
 pub struct CreateEntityRequest {
-    pub entity_type_id: String,
+    pub entity_type_name: String,
     pub name: String,
     pub summary: Option<String>,
     pub visibility: Option<String>,

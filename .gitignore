@@ -21,3 +21,6 @@ target
 .idea/
 dist/
 node_modules/
+
+# Superpowers scratch workspace (per-plan SDD ledgers/briefs/reports)
+.superpowers/

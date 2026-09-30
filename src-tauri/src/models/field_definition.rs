@@ -15,12 +15,11 @@ pub const VALID_FIELD_TYPES: &[&str] = &[
     "image",
 ];
 
-/// A custom field definition for an entity type.
-/// Maps to the `field_definitions` table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldDefinition {
     pub id: String,
-    pub entity_type_id: String,
+    pub entity_type_id: Option<String>,
+    pub entity_id: Option<String>,
     pub name: String,
     pub label: String,
     pub field_type: String,
@@ -33,10 +32,9 @@ pub struct FieldDefinition {
     pub deleted_at: Option<String>,
 }
 
-/// Input for creating a field definition.
 #[derive(Debug, Deserialize)]
 pub struct CreateFieldDefinitionRequest {
-    pub entity_type_id: String,
+    pub entity_id: String,
     pub name: String,
     pub label: String,
     pub field_type: String,

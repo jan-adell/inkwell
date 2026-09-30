@@ -45,6 +45,11 @@ pub fn all_migrations() -> Vec<Migration> {
             name: "relations_unique_active_only",
             sql: include_str!("migrations/005_relations_unique_active_only.sql"),
         },
+        Migration {
+            version: 6,
+            name: "entity_scoped_field_definitions",
+            sql: include_str!("migrations/006_entity_scoped_field_definitions.sql"),
+        },
     ]
 }
 
@@ -120,6 +125,8 @@ fn apply_migration(conn: &mut Connection, migration: &Migration) -> Result<()> {
     let checksum = sha256_hex(migration.sql);
     let now = chrono::Utc::now().to_rfc3339();
 
+    disable_foreign_keys(conn)?;
+
     // Use a savepoint so we can roll back just this migration
     // without affecting any prior work in the connection.
     let tx = conn.transaction()?;
@@ -147,6 +154,18 @@ fn apply_migration(conn: &mut Connection, migration: &Migration) -> Result<()> {
 
     tx.commit()?;
 
+    enable_foreign_keys(conn)?;
+
+    Ok(())
+}
+
+fn disable_foreign_keys(conn: &Connection) -> Result<()> {
+    conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+    Ok(())
+}
+
+fn enable_foreign_keys(conn: &Connection) -> Result<()> {
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
     Ok(())
 }
 
@@ -166,7 +185,48 @@ mod tests {
     /// WAL mode is not available for in-memory databases, so we skip
     /// pragma configuration and test the migration logic directly.
     fn test_conn() -> Connection {
-        Connection::open_in_memory().unwrap()
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        conn
+    }
+
+    fn seed(conn: &Connection) -> (String, String, String) {
+        let pid = "p1".to_string();
+        let etid = "et1".to_string();
+        let eid = "e1".to_string();
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES(?1,'P','2026-01-01','2026-01-01')",
+            [&pid],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES(?1,?2,'Character',0,0,'2026-01-01','2026-01-01')",
+            [&etid, &pid],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
+             VALUES(?1,?2,?3,'Kael','private',0,'2026-01-01','2026-01-01')",
+            [&eid, &pid, &etid],
+        ).unwrap();
+        (pid, etid, eid)
+    }
+
+    fn seed_field_def(conn: &Connection, owner_id: &str, owner_type: &str, name: &str) -> String {
+        let fd_id = format!("fd-{}", name);
+        if owner_type == "type" {
+            conn.execute(
+                "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+                 VALUES(?1,?2,?3,?3,'text',0,'private',0,'2026-01-01')",
+                [&fd_id, owner_id, name],
+            ).unwrap();
+        } else {
+            conn.execute(
+                "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+                 VALUES(?1,?2,?3,?3,'text',0,'private',0,'2026-01-01')",
+                [&fd_id, owner_id, name],
+            ).unwrap();
+        }
+        fd_id
     }
 
     #[test]
@@ -201,5 +261,225 @@ mod tests {
         let b = sha256_hex("SELECT 1;");
         assert_eq!(a, b);
         assert_ne!(a, sha256_hex("SELECT 2;"));
+    }
+
+    #[test]
+    fn migration_006_preserves_legacy_rows_and_allows_entity_scoped_rows() {
+        let mut conn = test_conn();
+        run_pending_migrations(&mut conn).unwrap();
+
+        let (_, etid, eid) = seed(&conn);
+
+        let _fd_legacy = seed_field_def(&conn, &etid, "type", "edad");
+        let _fd_new = seed_field_def(&conn, &eid, "entity", "nickname");
+
+        let legacy_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM field_definitions WHERE entity_type_id=?1",
+                [&etid],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(legacy_count, 1);
+
+        let new_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM field_definitions WHERE entity_id=?1",
+                [&eid],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(new_count, 1);
+    }
+
+    #[test]
+    fn migration_006_check_constraint_rejects_both_owners_set() {
+        let mut conn = test_conn();
+        run_pending_migrations(&mut conn).unwrap();
+        let (_, etid, eid) = seed(&conn);
+
+        let result = conn.execute(
+            "INSERT INTO field_definitions(id,entity_type_id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd-bad',?1,?2,'x','X','text',0,'private',0,'2026-01-01')",
+            [&etid, &eid],
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn migration_006_check_constraint_rejects_neither_owner_set() {
+        let mut conn = test_conn();
+        run_pending_migrations(&mut conn).unwrap();
+        let result = conn.execute(
+            "INSERT INTO field_definitions(id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd-bad','x','X','text',0,'private',0,'2026-01-01')",
+            [],
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn migration_006_unique_index_scopes_correctly_per_entity() {
+        let mut conn = test_conn();
+        run_pending_migrations(&mut conn).unwrap();
+        let (_, _, eid) = seed(&conn);
+
+        let eid2 = "e2".to_string();
+        conn.execute(
+            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
+             VALUES(?1,'p1','et1','Aren','private',1,'2026-01-01','2026-01-01')",
+            [&eid2],
+        ).unwrap();
+
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd1',?1,'nickname','Nickname','text',0,'private',0,'2026-01-01')",
+            [&eid],
+        ).unwrap();
+
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd2',?1,'nickname','Nickname','text',0,'private',0,'2026-01-01')",
+            [&eid2],
+        ).unwrap();
+
+        let dup = conn.execute(
+            "INSERT INTO field_definitions(id,entity_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd3',?1,'nickname','Nickname 2','text',0,'private',0,'2026-01-01')",
+            [&eid],
+        );
+        assert!(dup.is_err());
+    }
+
+    type FieldDefinitionSnapshot = (
+        Option<String>,
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        i64,
+        String,
+        i64,
+        String,
+        Option<String>,
+    );
+
+    fn snapshot_field_definition(conn: &Connection, id: &str) -> FieldDefinitionSnapshot {
+        conn.query_row(
+            "SELECT entity_type_id,name,label,field_type,options,default_value,
+                    is_required,visibility,sort_order,created_at,deleted_at
+             FROM field_definitions WHERE id=?1",
+            [id],
+            |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                    r.get(7)?,
+                    r.get(8)?,
+                    r.get(9)?,
+                    r.get(10)?,
+                ))
+            },
+        )
+        .unwrap()
+    }
+
+    type FieldValueSnapshot = (String, String, Option<String>, String);
+
+    fn snapshot_field_value(conn: &Connection, id: &str) -> FieldValueSnapshot {
+        conn.query_row(
+            "SELECT entity_id,field_def_id,value_text,updated_at FROM field_values WHERE id=?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn migration_006_succeeds_with_field_values_fk_references() {
+        let mut conn = test_conn();
+        ensure_migrations_table(&conn).unwrap();
+
+        for migration in all_migrations().into_iter().filter(|m| m.version <= 5) {
+            apply_migration(&mut conn, &migration).unwrap();
+        }
+
+        conn.execute(
+            "INSERT INTO projects(id,name,created_at,updated_at) VALUES('p1','P','2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entity_types(id,project_id,name,is_system,sort_order,created_at,updated_at)
+             VALUES('et1','p1','Character',0,0,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at)
+             VALUES('e1','p1','et1','Kael','private',0,'2026-01-01','2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,is_required,visibility,sort_order,created_at)
+             VALUES('fd-legacy','et1','bio','Bio','text',0,'private',0,'2026-01-01')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO field_definitions(id,entity_type_id,name,label,field_type,options,default_value,is_required,visibility,sort_order,created_at,deleted_at)
+             VALUES('fd-legacy-deleted','et1','eye_color','Eye Color','select','[\"Brown\",\"Blue\"]','Brown',1,'beta',3,'2026-01-02','2026-01-03')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO field_values(id,entity_id,field_def_id,value_text,updated_at)
+             VALUES('fv1','e1','fd-legacy','test','2026-01-01')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO field_values(id,entity_id,field_def_id,value_text,updated_at)
+             VALUES('fv2','e1','fd-legacy-deleted','Brown','2026-01-02')",
+            [],
+        )
+        .unwrap();
+
+        let fd_active_before = snapshot_field_definition(&conn, "fd-legacy");
+        let fd_deleted_before = snapshot_field_definition(&conn, "fd-legacy-deleted");
+        let fv1_before = snapshot_field_value(&conn, "fv1");
+        let fv2_before = snapshot_field_value(&conn, "fv2");
+
+        run_pending_migrations(&mut conn).unwrap();
+
+        assert_eq!(
+            snapshot_field_definition(&conn, "fd-legacy"),
+            fd_active_before
+        );
+        assert_eq!(
+            snapshot_field_definition(&conn, "fd-legacy-deleted"),
+            fd_deleted_before
+        );
+        assert_eq!(snapshot_field_value(&conn, "fv1"), fv1_before);
+        assert_eq!(snapshot_field_value(&conn, "fv2"), fv2_before);
+
+        let active_entity_id: Option<String> = conn
+            .query_row(
+                "SELECT entity_id FROM field_definitions WHERE id='fd-legacy'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let deleted_entity_id: Option<String> = conn
+            .query_row(
+                "SELECT entity_id FROM field_definitions WHERE id='fd-legacy-deleted'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(active_entity_id, None);
+        assert_eq!(deleted_entity_id, None);
     }
 }

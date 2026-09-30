@@ -25,6 +25,10 @@ pub fn run() {
             commands::entity_types::list_entity_types,
             commands::entity_types::update_entity_type,
             commands::entity_types::delete_entity_type,
+            commands::entity_templates::list_entity_templates,
+            commands::entity_templates::create_entity_template,
+            commands::entity_templates::update_entity_template,
+            commands::entity_templates::delete_entity_template,
             // Entities
             commands::entities::create_entity,
             commands::entities::get_entity,
@@ -36,7 +40,8 @@ pub fn run() {
             commands::entities::delete_entity,
             // Field definitions
             commands::field_definitions::create_field_definition,
-            commands::field_definitions::list_field_definitions,
+            commands::field_definitions::list_field_definitions_by_type,
+            commands::field_definitions::list_field_definitions_by_entity,
             commands::field_definitions::update_field_definition,
             commands::field_definitions::delete_field_definition,
             // Field values
