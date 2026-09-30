@@ -49,6 +49,7 @@ export async function invokeCreateRelationType(projectId: string, req: { name: s
 export async function invokeListRelationTypes(projectId: string): Promise<RelationType[]> { return invoke<RelationType[]>("list_relation_types", { projectId }); }
 export async function invokeCreateRelation(projectId: string, req: { source_entity_id: string; relation_type_id: string; target_entity_id: string; notes?: string; sort_order?: number }): Promise<Relation> { return invoke<Relation>("create_relation", { projectId, req }); }
 export async function invokeDeleteRelation(id: string): Promise<void> { return invoke("delete_relation", { id }); }
+export async function invokeListRelations(projectId: string): Promise<Relation[]> { return invoke<Relation[]>("list_relations", { projectId }); }
 export async function invokeListOutgoingRelations(entityId: string): Promise<Relation[]> { return invoke<Relation[]>("list_outgoing_relations", { entityId }); }
 export async function invokeListIncomingRelations(entityId: string): Promise<Relation[]> { return invoke<Relation[]>("list_incoming_relations", { entityId }); }
 export async function invokeGetProjectStats(projectId: string): Promise<ProjectStats> { return invoke<ProjectStats>("get_project_stats", { projectId }); }

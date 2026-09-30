@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, FileText, Plus, ChevronRight, ChevronDown, Feather, Globe, Folder, Trash2 } from "lucide-react";
+import { BookOpen, FileText, Plus, ChevronRight, ChevronDown, Feather, Globe, Folder, Network, Trash2 } from "lucide-react";
 import { useAppStore } from "../store/appStore";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -945,6 +945,7 @@ export function Sidebar() {
       <div className="flex border-b border-ink-border">
         <button onClick={() => setActiveView("writing")} className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-mono tracking-wider uppercase transition-colors ${activeView === "writing" ? "text-gold border-b-2 border-gold" : "text-ivory-ghost hover:text-ivory-dim"}`}><Feather size={12} />Write</button>
         <button onClick={() => setActiveView("worldbuilding")} className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-mono tracking-wider uppercase transition-colors ${activeView === "worldbuilding" ? "text-gold border-b-2 border-gold" : "text-ivory-ghost hover:text-ivory-dim"}`}><Globe size={12} />World</button>
+        <button onClick={() => setActiveView("graph")} className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-mono tracking-wider uppercase transition-colors ${activeView === "graph" ? "text-gold border-b-2 border-gold" : "text-ivory-ghost hover:text-ivory-dim"}`}><Network size={12} />Graph</button>
       </div>
 
       {activeView === "writing" && (
