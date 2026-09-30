@@ -944,8 +944,7 @@ export function Sidebar() {
     <aside className="flex flex-col h-full bg-ink-deep border-r border-ink-border select-none">
       <div className="flex border-b border-ink-border">
         <button onClick={() => setActiveView("writing")} className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-mono tracking-wider uppercase transition-colors ${activeView === "writing" ? "text-gold border-b-2 border-gold" : "text-ivory-ghost hover:text-ivory-dim"}`}><Feather size={12} />Write</button>
-        <button onClick={() => setActiveView("worldbuilding")} className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-mono tracking-wider uppercase transition-colors ${activeView === "worldbuilding" ? "text-gold border-b-2 border-gold" : "text-ivory-ghost hover:text-ivory-dim"}`}><Globe size={12} />World</button>
-        <button onClick={() => setActiveView("graph")} className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-mono tracking-wider uppercase transition-colors ${activeView === "graph" ? "text-gold border-b-2 border-gold" : "text-ivory-ghost hover:text-ivory-dim"}`}><Network size={12} />Graph</button>
+        <button onClick={() => setActiveView("worldbuilding")} className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-mono tracking-wider uppercase transition-colors ${activeView !== "writing" ? "text-gold border-b-2 border-gold" : "text-ivory-ghost hover:text-ivory-dim"}`}><Globe size={12} />World</button>
       </div>
 
       {activeView === "writing" && (
@@ -960,8 +959,15 @@ export function Sidebar() {
         </div>
       )}
 
-      {activeView === "worldbuilding" && (
-        <div className="px-2 py-2 border-b border-ink-border">
+      {activeView !== "writing" && (
+        <div className="px-2 py-2 border-b border-ink-border space-y-1">
+          <button
+            onClick={() => setActiveView("graph")}
+            className={`w-full flex items-center justify-center gap-1.5 py-2 rounded text-xs transition-colors ${activeView === "graph" ? "text-gold bg-ink-muted" : "text-ivory-ghost hover:text-ivory hover:bg-ink-muted"}`}
+          >
+            <Network size={13} />
+            Graph
+          </button>
           <button
             onClick={() => setShowCreateEntityModal(true)}
             className="w-full flex items-center justify-center gap-1.5 py-2 rounded text-xs text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"
