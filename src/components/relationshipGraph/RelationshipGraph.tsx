@@ -6,9 +6,14 @@ import { useAppStore } from "../../store/appStore";
 import { invokeListRelations, invokeListRelationTypes } from "../../hooks/useTauri";
 import type { Relation } from "../../types/core";
 import { buildGraph } from "./buildGraph";
+import "./relationshipGraph.css";
+import { curveOffsets } from "./edgeGeometry";
+import { FloatingEdge } from "./FloatingEdge";
 import { focusGraph } from "./focusGraph";
 import { edgeLabelProps, edgeStyle, nodeStyle } from "./graphStyle";
 import { layoutGraph } from "./layoutGraph";
+
+const EDGE_TYPES = { floating: FloatingEdge };
 
 export function RelationshipGraph() {
   const {
@@ -47,12 +52,15 @@ export function RelationshipGraph() {
         dimmed: focus !== null && !focus.nodeIds.has(node.id),
       }),
     }));
+    const offsets = curveOffsets(graph.edges);
     const flowEdges: Edge[] = graph.edges.map((edge) => {
       const dimmed = focus !== null && !focus.edgeIds.has(edge.id);
       return {
         id: edge.id,
+        type: "floating",
         source: edge.source,
         target: edge.target,
+        data: { offset: offsets[edge.id] },
         label: edge.label,
         style: edgeStyle(edge.color, { focused: focus?.edgeIds.has(edge.id) ?? false, dimmed }),
         ...edgeLabelProps({ dimmed }),
@@ -62,7 +70,9 @@ export function RelationshipGraph() {
     return { nodes: flowNodes, edges: flowEdges };
   }, [graph, positions, selectedEntityId]);
 
-  if (relations !== null && relations.length === 0) {
+  if (relations === null) return <main className="flex-1 bg-ink-void" />;
+
+  if (relations.length === 0) {
     return (
       <main className="flex-1 flex flex-col items-center justify-center bg-ink-void">
         <Network size={32} className="text-ivory-ghost opacity-20 mx-auto mb-3" />
@@ -76,6 +86,7 @@ export function RelationshipGraph() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        edgeTypes={EDGE_TYPES}
         nodesConnectable={false}
         nodesDraggable={false}
         fitView

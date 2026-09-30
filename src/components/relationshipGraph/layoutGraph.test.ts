@@ -26,6 +26,14 @@ describe("layoutGraph", () => {
     expect(positions.a).not.toEqual(positions.b);
   });
 
+  it("leaves room between linked nodes for the relation label", () => {
+    const positions = layoutGraph([node("a"), node("b")], [edge("x", "a", "b")]);
+
+    const distance = Math.hypot(positions.a.x - positions.b.x, positions.a.y - positions.b.y);
+
+    expect(distance).toBeGreaterThanOrEqual(240);
+  });
+
   it("is deterministic for the same input", () => {
     const nodes = [node("a"), node("b"), node("c")];
     const edges = [edge("x", "a", "b"), edge("y", "b", "c")];

@@ -67,6 +67,17 @@ describe("RelationshipGraph", () => {
     await waitFor(() => expect(mockListRelations).toHaveBeenCalledWith("p1"));
   });
 
+  it("does not draw entities before their relations have loaded", async () => {
+    let resolveRelations: (relations: Relation[]) => void = () => {};
+    mockListRelations.mockReturnValue(new Promise<Relation[]>((resolve) => { resolveRelations = resolve; }));
+
+    render(<RelationshipGraph />);
+
+    expect(screen.queryByText("Kael")).not.toBeInTheDocument();
+    resolveRelations([RELATION]);
+    expect(await screen.findByText("Kael")).toBeInTheDocument();
+  });
+
   it("shows an empty state when the project has no relations", async () => {
     render(<RelationshipGraph />);
 

@@ -7,8 +7,8 @@ export interface Position {
 }
 
 const TICKS = 300;
-const LINK_DISTANCE = 160;
-const REPULSION = -400;
+const LINK_DISTANCE = 280;
+const REPULSION = -900;
 
 export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[]): Record<string, Position> {
   const simulated: (SimulationNodeDatum & { id: string })[] = nodes.map(({ id }) => ({ id }));
