@@ -3,6 +3,7 @@ pub mod core;
 pub mod documents;
 pub mod entities;
 pub mod entity_folders;
+pub mod entity_templates;
 pub mod entity_types;
 pub mod export;
 pub mod field_definitions;

@@ -1,8 +1,8 @@
-pub mod default_properties;
 pub mod document_repo;
 pub mod entity_asset_repo;
 pub mod entity_folder_repo;
 pub mod entity_repo;
+pub mod entity_templates;
 pub mod entity_type_repo;
 pub mod field_definition_repo;
 pub mod field_value_repo;

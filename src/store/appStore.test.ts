@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useAppStore } from "./appStore";
-import type { Entity, EntityFolder } from "../types/core";
+import type { Entity, EntityFolder, EntityTemplate, EntityType } from "../types/core";
 
 const entity = (id: string, name: string, folder_id: string | null = null): Entity => ({
   id, project_id: "proj-1", entity_type_id: "type-1", name,
@@ -12,6 +12,16 @@ const entity = (id: string, name: string, folder_id: string | null = null): Enti
 const folder = (id: string): EntityFolder => ({
   id, project_id: "proj-1", name: `Folder ${id}`,
   sort_order: 0, created_at: "2026-01-01T00:00:00Z", deleted_at: null,
+});
+
+const template = (id: string, name: string): EntityTemplate => ({
+  id, name, color: "#8B6FE8", fields: [],
+});
+
+const entityType = (id: string, name: string): EntityType => ({
+  id, project_id: "proj-1", name, name_plural: `${name}s`, icon: null,
+  color: "#8B6FE8", description: null, is_system: false, sort_order: 0,
+  created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", deleted_at: null,
 });
 
 beforeEach(() => {
@@ -121,5 +131,18 @@ describe("appStore entity slice", () => {
     expect(s.entityFolders).toHaveLength(0);
     expect(s.entitiesByFolder).toEqual({});
     expect(s.selectedEntityId).toBeNull();
+  });
+
+  it("resetProjectState keeps app-level entity templates while clearing project entity data", () => {
+    const store = useAppStore.getState();
+    const templates = [template("t1", "Character"), template("t2", "Location")];
+    store.setEntityTemplates(templates);
+    store.setEntityTypes([entityType("et1", "Character")]);
+    store.setRootEntities([entity("e1", "Aragorn")]);
+    store.resetProjectState();
+    const s = useAppStore.getState();
+    expect(s.entityTemplates).toEqual(templates);
+    expect(s.entityTypes).toHaveLength(0);
+    expect(s.rootEntities).toHaveLength(0);
   });
 });

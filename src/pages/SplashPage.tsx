@@ -1,12 +1,12 @@
 import { useEffect } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useAppStore } from "../store/appStore";
-import { invokeInitializeCore, invokeListKnownProjects } from "../hooks/useTauri";
+import { invokeInitializeCore, invokeListKnownProjects, invokeListEntityTemplates } from "../hooks/useTauri";
 
 export function SplashPage() {
   const {
     initStatus, initError,
-    setCoreInitialized, setInitStatus, setInitError, setKnownProjects,
+    setCoreInitialized, setInitStatus, setInitError, setKnownProjects, setEntityTemplates,
   } = useAppStore();
 
   useEffect(() => {
@@ -20,6 +20,9 @@ export function SplashPage() {
           const projects = await invokeListKnownProjects();
           if (cancelled) return;
           setKnownProjects(projects);
+          const templates = await invokeListEntityTemplates();
+          if (cancelled) return;
+          setEntityTemplates(templates);
           setCoreInitialized(true);
         } else {
           setInitError(result.message);

@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { ArrowLeft, BarChart3, Palette } from "lucide-react";
+import { ArrowLeft, BarChart3, Shapes, Palette } from "lucide-react";
 import { StatisticsPanel } from "./StatisticsPanel";
+import { EntityTypeEditor } from "./EntityTypeEditor";
 import { AppearanceSettings } from "./AppearanceSettings";
 
-export type SettingsSection = "statistics" | "appearance";
+export type SettingsSection = "statistics" | "entity-types" | "appearance";
 
 const ALL_SECTIONS: { id: SettingsSection; label: string; icon: typeof BarChart3 }[] = [
   { id: "statistics", label: "Statistics", icon: BarChart3 },
+  { id: "entity-types", label: "Entity Types", icon: Shapes },
   { id: "appearance", label: "Appearance", icon: Palette },
+];
 ];
 
 interface Props {
@@ -49,6 +52,8 @@ export function SettingsScreen({ onBack, sections = ["statistics", "appearance"]
       </aside>
       <main className="flex-1 overflow-y-auto p-6">
         {activeSection === "statistics" && <StatisticsPanel />}
+        {activeSection === "statistics" && <StatisticsPanel />}
+        {activeSection === "entity-types" && <EntityTypeEditor />}
         {activeSection === "appearance" && <AppearanceSettings />}
       </main>
     </div>

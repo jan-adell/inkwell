@@ -52,6 +52,21 @@ export interface EntityType {
   deleted_at: string | null;
 }
 
+export interface DefaultField {
+  name: string;
+  label: string;
+  field_type: FieldType;
+  options: string | null;
+  default_value: string | null;
+}
+
+export interface EntityTemplate {
+  id: string;
+  name: string;
+  color: string;
+  fields: DefaultField[];
+}
+
 export interface Entity {
   id: string;
   project_id: string;

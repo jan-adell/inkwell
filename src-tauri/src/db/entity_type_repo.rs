@@ -116,46 +116,34 @@ pub fn update(conn: &Connection, id: &str, req: &UpdateEntityTypeRequest) -> Res
     get(conn, id)
 }
 
-pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
+pub fn get_or_create_by_name(
+    conn: &Connection,
+    project_id: &str,
+    name: &str,
+    color: &str,
+) -> Result<EntityType> {
     let existing = list(conn, project_id)?;
-    let existing_names: std::collections::HashSet<&str> =
-        existing.iter().map(|t| t.name.as_str()).collect();
-    let mut next_sort_order = existing
+    if let Some(found) = existing.iter().find(|t| t.name == name) {
+        return Ok(found.clone());
+    }
+    let next_sort_order = existing
         .iter()
         .map(|t| t.sort_order)
         .max()
         .map(|m| m + 1)
         .unwrap_or(0);
-
-    let defaults = [
-        ("Character", "Characters", "#8B6FE8"),
-        ("Location", "Locations", "#4EA86B"),
-        ("Item", "Items", "#E8883A"),
-        ("Event", "Events", "#4A9FD4"),
-        ("Organization", "Organizations", "#D44A7A"),
-        ("Entity", "Entities", "#6B7280"),
-    ];
-
-    for (name, plural, color) in defaults.iter() {
-        if existing_names.contains(name) {
-            continue;
-        }
-
-        create(
-            conn,
-            project_id,
-            &CreateEntityTypeRequest {
-                name: name.to_string(),
-                name_plural: Some(plural.to_string()),
-                icon: None,
-                color: Some(color.to_string()),
-                description: None,
-                sort_order: Some(next_sort_order),
-            },
-        )?;
-        next_sort_order += 1;
-    }
-    Ok(())
+    create(
+        conn,
+        project_id,
+        &CreateEntityTypeRequest {
+            name: name.to_string(),
+            name_plural: None,
+            icon: None,
+            color: Some(color.to_string()),
+            description: None,
+            sort_order: Some(next_sort_order),
+        },
+    )
 }
 
 /// Soft-delete. Refuses to delete system types.
@@ -180,7 +168,6 @@ pub fn delete(conn: &Connection, id: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::field_definition_repo;
     use crate::db::migrations::{ensure_migrations_table, run_pending_migrations};
 
     fn test_conn() -> Connection {
@@ -300,119 +287,53 @@ mod tests {
     }
 
     #[test]
-    fn seed_defaults_creates_six_types() {
+    fn get_or_create_by_name_creates_when_missing() {
         let conn = test_conn();
         let pid = seed_project(&conn);
-        seed_defaults(&conn, &pid).unwrap();
+        let created = get_or_create_by_name(&conn, &pid, "Planet", "#00FFAA").unwrap();
+        assert_eq!(created.name, "Planet");
+        assert_eq!(created.name_plural, None);
+        assert_eq!(created.color.as_deref(), Some("#00FFAA"));
+        assert_eq!(created.sort_order, 0);
+
         let types = list(&conn, &pid).unwrap();
-        assert_eq!(types.len(), 6);
-        let names: Vec<&str> = types.iter().map(|t| t.name.as_str()).collect();
-        assert!(names.contains(&"Character"));
-        assert!(names.contains(&"Location"));
-        assert!(names.contains(&"Item"));
-        assert!(names.contains(&"Event"));
-        assert!(names.contains(&"Organization"));
-        assert!(names.contains(&"Entity"));
+        assert_eq!(types.len(), 1);
     }
 
     #[test]
-    fn seed_defaults_is_idempotent() {
+    fn get_or_create_by_name_reuses_existing_row_unchanged() {
         let conn = test_conn();
         let pid = seed_project(&conn);
-        seed_defaults(&conn, &pid).unwrap();
-        seed_defaults(&conn, &pid).unwrap();
-        let types = list(&conn, &pid).unwrap();
-        assert_eq!(types.len(), 6);
-    }
-
-    #[test]
-    fn seed_defaults_assigns_sort_order_in_order() {
-        let conn = test_conn();
-        let pid = seed_project(&conn);
-        seed_defaults(&conn, &pid).unwrap();
-        let types = list(&conn, &pid).unwrap();
-        for (i, t) in types.iter().enumerate() {
-            assert_eq!(t.sort_order, i as i64);
-        }
-    }
-
-    #[test]
-    fn seed_defaults_adds_missing_defaults_alongside_a_custom_type() {
-        let conn = test_conn();
-        let pid = seed_project(&conn);
-        create(
-            &conn,
-            &pid,
-            &CreateEntityTypeRequest {
-                name: "Custom".into(),
-                name_plural: None,
-                icon: None,
-                color: None,
-                description: None,
-                sort_order: None,
-            },
-        )
-        .unwrap();
-        seed_defaults(&conn, &pid).unwrap();
-        let types = list(&conn, &pid).unwrap();
-        assert_eq!(types.len(), 7);
-        let names: Vec<&str> = types.iter().map(|t| t.name.as_str()).collect();
-        assert!(names.contains(&"Custom"));
-        assert!(names.contains(&"Character"));
-        assert!(names.contains(&"Entity"));
-    }
-
-    #[test]
-    fn seed_defaults_adds_only_missing_types_to_an_existing_project() {
-        let conn = test_conn();
-        let pid = seed_project(&conn);
-        // Simulate a project seeded before the "Entity" type / default fields existed:
-        // the 5 named types already exist, with no field_definitions of their own.
-        let character = create(
+        let original = create(
             &conn,
             &pid,
             &CreateEntityTypeRequest {
                 name: "Character".into(),
                 name_plural: Some("Characters".into()),
                 icon: None,
-                color: None,
+                color: Some("#8B6FE8".into()),
                 description: None,
                 sort_order: Some(0),
             },
         )
         .unwrap();
-        for (i, name) in ["Location", "Item", "Event", "Organization"]
-            .iter()
-            .enumerate()
-        {
-            create(
-                &conn,
-                &pid,
-                &CreateEntityTypeRequest {
-                    name: name.to_string(),
-                    name_plural: None,
-                    icon: None,
-                    color: None,
-                    description: None,
-                    sort_order: Some(i as i64 + 1),
-                },
-            )
-            .unwrap();
-        }
 
-        seed_defaults(&conn, &pid).unwrap();
+        let found = get_or_create_by_name(&conn, &pid, "Character", "#FFFFFF").unwrap();
+        assert_eq!(found.id, original.id);
+        assert_eq!(found.name_plural.as_deref(), Some("Characters"));
+        assert_eq!(found.color.as_deref(), Some("#8B6FE8"));
 
         let types = list(&conn, &pid).unwrap();
-        assert_eq!(types.len(), 6);
-        assert!(types.iter().any(|t| t.name == "Entity"));
+        assert_eq!(types.len(), 1);
+    }
 
-        let refetched = get(&conn, &character.id).unwrap();
-        assert_eq!(refetched.id, character.id);
-        assert!(
-            field_definition_repo::list_by_entity_type(&conn, &character.id)
-                .unwrap()
-                .is_empty()
-        );
+    #[test]
+    fn get_or_create_by_name_assigns_next_sort_order() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        get_or_create_by_name(&conn, &pid, "Character", "#8B6FE8").unwrap();
+        let second = get_or_create_by_name(&conn, &pid, "Location", "#4EA86B").unwrap();
+        assert_eq!(second.sort_order, 1);
     }
 
     #[test]

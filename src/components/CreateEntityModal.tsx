@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { X, Plus, Folder } from "lucide-react";
 import { useAppStore } from "../store/appStore";
-import { invokeCreateEntity, invokeCreateEntityFolder } from "../hooks/useTauri";
+import { invokeCreateEntity, invokeCreateEntityFolder, invokeListEntityTypes } from "../hooks/useTauri";
 
 export function CreateEntityModal() {
   const {
     showCreateEntityModal,
     setShowCreateEntityModal,
     projectId,
-    entityTypes,
+    entityTemplates,
     rootEntities,
     setRootEntities,
+    setEntityTypes,
     entityFolders,
     setEntityFolders,
     setSelectedEntityId,
@@ -19,15 +20,16 @@ export function CreateEntityModal() {
 
   if (!showCreateEntityModal || !projectId) return null;
 
-  async function createEntity(entityTypeId: string) {
+  async function createEntity(entityTypeName: string) {
     if (!projectId || creating) return;
     setCreating(true);
     try {
       const entity = await invokeCreateEntity(projectId, {
-        entity_type_id: entityTypeId,
+        entity_type_name: entityTypeName,
         name: "New Entity",
       });
       setRootEntities([...rootEntities, entity]);
+      invokeListEntityTypes(projectId).then(setEntityTypes).catch(console.error);
       setSelectedEntityId(entity.id);
       setShowCreateEntityModal(false);
     } finally {
@@ -64,19 +66,19 @@ export function CreateEntityModal() {
             </button>
           </div>
           <div className="px-4 py-3 space-y-2">
-            {entityTypes.map((type) => (
+            {entityTemplates.map((template) => (
               <button
-                key={type.id}
-                onClick={() => void createEntity(type.id)}
+                key={template.id}
+                onClick={() => void createEntity(template.name)}
                 disabled={creating}
                 className="w-full flex items-center justify-between px-3 py-2 rounded border hover:opacity-90 transition-all group font-mono text-xs uppercase tracking-wider disabled:opacity-50"
                 style={{
-                  borderColor: type.color ?? "#c9a84c",
-                  color: type.color ?? "#c9a84c",
-                  backgroundColor: `${type.color ?? "#c9a84c"}22`,
+                  borderColor: template.color,
+                  color: template.color,
+                  backgroundColor: `${template.color}22`,
                 }}
               >
-                <span>{type.name}</span>
+                <span>{template.name}</span>
                 <Plus size={12} className="opacity-60 group-hover:opacity-100 transition-opacity" />
               </button>
             ))}
