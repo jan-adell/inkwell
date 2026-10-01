@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { curveOffsets, edgePath, floatingEndpoints, PARALLEL_SPACING, rectBorderPoint } from "./edgeGeometry";
+import { avoidObstacles, curveOffsets, edgePath, floatingEndpoints, PARALLEL_SPACING, rectBorderPoint, sampleEdge } from "./edgeGeometry";
 import type { GraphEdge } from "./buildGraph";
 
 const rect = (x: number, y: number, width = 100, height = 40) => ({ x, y, width, height });
@@ -18,6 +18,49 @@ describe("rectBorderPoint", () => {
 
   it("leaves through the corner region along the diagonal", () => {
     expect(rectBorderPoint(box, { x: 100, y: 100 })).toEqual({ x: 20, y: 20 });
+  });
+});
+
+describe("avoidObstacles", () => {
+  const start = { x: 0, y: 0 };
+  const end = { x: 400, y: 0 };
+  const blocker = rect(150, -20, 100, 40);
+
+  const insideAny = (offset: number, obstacles: ReturnType<typeof rect>[]) =>
+    sampleEdge(start, end, offset, 40).some((point) =>
+      obstacles.some(
+        (box) => point.x > box.x && point.x < box.x + box.width && point.y > box.y && point.y < box.y + box.height,
+      ),
+    );
+
+  it("keeps the base offset when nothing is in the way", () => {
+    expect(avoidObstacles(start, end, 0, [])).toBe(0);
+    expect(avoidObstacles(start, end, 0, [rect(150, 100, 100, 40)])).toBe(0);
+  });
+
+  it("bends a straight edge around a node sitting on it", () => {
+    const offset = avoidObstacles(start, end, 0, [blocker]);
+
+    expect(offset).not.toBe(0);
+    expect(insideAny(offset, [blocker])).toBe(false);
+  });
+
+  it("keeps a parallel offset that is already clear", () => {
+    expect(avoidObstacles(start, end, 30, [blocker])).toBe(30);
+  });
+
+  it("clears several blocking nodes at once", () => {
+    const blockers = [blocker, rect(40, -20, 60, 40), rect(300, -30, 60, 60)];
+
+    const offset = avoidObstacles(start, end, 0, blockers);
+
+    expect(insideAny(offset, blockers)).toBe(false);
+  });
+
+  it("falls back to the base offset when no bend can clear the obstacles", () => {
+    const wall = rect(150, -2000, 100, 4000);
+
+    expect(avoidObstacles(start, end, 0, [wall])).toBe(0);
   });
 });
 

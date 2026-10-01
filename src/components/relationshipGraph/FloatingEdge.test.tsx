@@ -4,9 +4,11 @@ import type { EdgeProps } from "@xyflow/react";
 import { FloatingEdge } from "./FloatingEdge";
 
 const mockUseInternalNode = vi.fn();
+const mockUseNodes = vi.fn();
 
 vi.mock("@xyflow/react", () => ({
   useInternalNode: (id: string) => mockUseInternalNode(id),
+  useNodes: () => mockUseNodes(),
   BaseEdge: ({ path, label, labelX, labelY, markerEnd }: Record<string, unknown>) => (
     <path
       data-testid="edge"
@@ -36,6 +38,8 @@ const renderEdge = (props: Partial<EdgeProps> = {}) =>
 describe("FloatingEdge", () => {
   beforeEach(() => {
     mockUseInternalNode.mockReset();
+    mockUseNodes.mockReset();
+    mockUseNodes.mockReturnValue([]);
     mockUseInternalNode.mockImplementation((id: string) => (id === "a" ? measuredNode(0, 0) : measuredNode(300, 0)));
   });
 
@@ -65,6 +69,46 @@ describe("FloatingEdge", () => {
     const { getByTestId } = renderEdge();
 
     expect(getByTestId("edge").getAttribute("data-marker-end")).toBe("url(#arrow)");
+  });
+
+  describe("avoiding other nodes", () => {
+    const placed = (id: string, x: number, y: number, measured: { width?: number; height?: number } = { width: 100, height: 40 }) => ({
+      id,
+      position: { x, y },
+      measured,
+    });
+
+    it("bows around a node sitting on the line", () => {
+      mockUseNodes.mockReturnValue([placed("a", 0, 0), placed("b", 300, 0), placed("c", 150, 0)]);
+
+      const { getByTestId } = renderEdge();
+
+      expect(getByTestId("edge").getAttribute("d")).toMatch(/^M 100 20 Q /);
+    });
+
+    it("stays straight when other nodes are off the line", () => {
+      mockUseNodes.mockReturnValue([placed("a", 0, 0), placed("b", 300, 0), placed("c", 150, 200)]);
+
+      const { getByTestId } = renderEdge();
+
+      expect(getByTestId("edge").getAttribute("d")).toBe("M 100 20 L 300 20");
+    });
+
+    it("ignores nodes that have not been measured yet", () => {
+      mockUseNodes.mockReturnValue([placed("a", 0, 0), placed("b", 300, 0), placed("c", 150, 0, {})]);
+
+      const { getByTestId } = renderEdge();
+
+      expect(getByTestId("edge").getAttribute("d")).toBe("M 100 20 L 300 20");
+    });
+
+    it("does not treat its own endpoints as obstacles", () => {
+      mockUseNodes.mockReturnValue([placed("a", 0, 0), placed("b", 300, 0)]);
+
+      const { getByTestId } = renderEdge();
+
+      expect(getByTestId("edge").getAttribute("d")).toBe("M 100 20 L 300 20");
+    });
   });
 
   it("draws nothing when an endpoint node is unknown", () => {
