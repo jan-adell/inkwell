@@ -25,4 +25,18 @@ describe("SettingsScreen", () => {
     await user.click(screen.getByRole("button", { name: /back/i }));
     expect(onBack).toHaveBeenCalledOnce();
   });
+
+  it("switches to the Appearance panel when its section is clicked", async () => {
+    const user = userEvent.setup();
+    render(<SettingsScreen onBack={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Appearance" }));
+    expect(screen.getByText("Theme Backgrounds")).toBeInTheDocument();
+  });
+
+  it("only shows the sections passed in, defaulting to the first one", () => {
+    render(<SettingsScreen onBack={vi.fn()} sections={["appearance"]} />);
+    expect(screen.queryByRole("button", { name: "Statistics" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Appearance" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByText("Theme Backgrounds")).toBeInTheDocument();
+  });
 });
