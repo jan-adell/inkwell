@@ -118,9 +118,14 @@ pub fn update(conn: &Connection, id: &str, req: &UpdateEntityTypeRequest) -> Res
 
 pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
     let existing = list(conn, project_id)?;
-    if !existing.is_empty() {
-        return Ok(());
-    }
+    let existing_names: std::collections::HashSet<&str> =
+        existing.iter().map(|t| t.name.as_str()).collect();
+    let mut next_sort_order = existing
+        .iter()
+        .map(|t| t.sort_order)
+        .max()
+        .map(|m| m + 1)
+        .unwrap_or(0);
 
     let defaults = [
         ("Character", "Characters", "#8B6FE8"),
@@ -128,9 +133,14 @@ pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
         ("Item", "Items", "#E8883A"),
         ("Event", "Events", "#4A9FD4"),
         ("Organization", "Organizations", "#D44A7A"),
+        ("Entity", "Entities", "#6B7280"),
     ];
 
-    for (i, (name, plural, color)) in defaults.iter().enumerate() {
+    for (name, plural, color) in defaults.iter() {
+        if existing_names.contains(name) {
+            continue;
+        }
+
         create(
             conn,
             project_id,
@@ -140,9 +150,10 @@ pub fn seed_defaults(conn: &Connection, project_id: &str) -> Result<()> {
                 icon: None,
                 color: Some(color.to_string()),
                 description: None,
-                sort_order: Some(i as i64),
+                sort_order: Some(next_sort_order),
             },
         )?;
+        next_sort_order += 1;
     }
     Ok(())
 }
@@ -169,6 +180,7 @@ pub fn delete(conn: &Connection, id: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::field_definition_repo;
     use crate::db::migrations::{ensure_migrations_table, run_pending_migrations};
 
     fn test_conn() -> Connection {
@@ -288,18 +300,19 @@ mod tests {
     }
 
     #[test]
-    fn seed_defaults_creates_five_types() {
+    fn seed_defaults_creates_six_types() {
         let conn = test_conn();
         let pid = seed_project(&conn);
         seed_defaults(&conn, &pid).unwrap();
         let types = list(&conn, &pid).unwrap();
-        assert_eq!(types.len(), 5);
+        assert_eq!(types.len(), 6);
         let names: Vec<&str> = types.iter().map(|t| t.name.as_str()).collect();
         assert!(names.contains(&"Character"));
         assert!(names.contains(&"Location"));
         assert!(names.contains(&"Item"));
         assert!(names.contains(&"Event"));
         assert!(names.contains(&"Organization"));
+        assert!(names.contains(&"Entity"));
     }
 
     #[test]
@@ -309,7 +322,7 @@ mod tests {
         seed_defaults(&conn, &pid).unwrap();
         seed_defaults(&conn, &pid).unwrap();
         let types = list(&conn, &pid).unwrap();
-        assert_eq!(types.len(), 5);
+        assert_eq!(types.len(), 6);
     }
 
     #[test]
@@ -324,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn seed_defaults_skips_when_types_already_exist() {
+    fn seed_defaults_adds_missing_defaults_alongside_a_custom_type() {
         let conn = test_conn();
         let pid = seed_project(&conn);
         create(
@@ -342,8 +355,64 @@ mod tests {
         .unwrap();
         seed_defaults(&conn, &pid).unwrap();
         let types = list(&conn, &pid).unwrap();
-        assert_eq!(types.len(), 1);
-        assert_eq!(types[0].name, "Custom");
+        assert_eq!(types.len(), 7);
+        let names: Vec<&str> = types.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"Custom"));
+        assert!(names.contains(&"Character"));
+        assert!(names.contains(&"Entity"));
+    }
+
+    #[test]
+    fn seed_defaults_adds_only_missing_types_to_an_existing_project() {
+        let conn = test_conn();
+        let pid = seed_project(&conn);
+        // Simulate a project seeded before the "Entity" type / default fields existed:
+        // the 5 named types already exist, with no field_definitions of their own.
+        let character = create(
+            &conn,
+            &pid,
+            &CreateEntityTypeRequest {
+                name: "Character".into(),
+                name_plural: Some("Characters".into()),
+                icon: None,
+                color: None,
+                description: None,
+                sort_order: Some(0),
+            },
+        )
+        .unwrap();
+        for (i, name) in ["Location", "Item", "Event", "Organization"]
+            .iter()
+            .enumerate()
+        {
+            create(
+                &conn,
+                &pid,
+                &CreateEntityTypeRequest {
+                    name: name.to_string(),
+                    name_plural: None,
+                    icon: None,
+                    color: None,
+                    description: None,
+                    sort_order: Some(i as i64 + 1),
+                },
+            )
+            .unwrap();
+        }
+
+        seed_defaults(&conn, &pid).unwrap();
+
+        let types = list(&conn, &pid).unwrap();
+        assert_eq!(types.len(), 6);
+        assert!(types.iter().any(|t| t.name == "Entity"));
+
+        let refetched = get(&conn, &character.id).unwrap();
+        assert_eq!(refetched.id, character.id);
+        assert!(
+            field_definition_repo::list_by_entity_type(&conn, &character.id)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

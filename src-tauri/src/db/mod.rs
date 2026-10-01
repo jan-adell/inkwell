@@ -1,3 +1,4 @@
+pub mod default_properties;
 pub mod document_repo;
 pub mod entity_asset_repo;
 pub mod entity_folder_repo;

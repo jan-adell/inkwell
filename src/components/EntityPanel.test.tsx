@@ -7,7 +7,8 @@ import type { Entity, EntityAsset, EntityType, FieldDefinition, Relation, Relati
 
 vi.mock("../hooks/useTauri", () => ({
   invokeGetFieldValues: vi.fn(),
-  invokeListFieldDefinitions: vi.fn(),
+  invokeListFieldDefinitionsByType: vi.fn(),
+  invokeListFieldDefinitionsByEntity: vi.fn(),
   invokeListEntityAssets: vi.fn(),
   invokeReadEntityAsset: vi.fn(),
   invokeListRelationTypes: vi.fn(),
@@ -17,7 +18,8 @@ vi.mock("../hooks/useTauri", () => ({
 
 import {
   invokeGetFieldValues,
-  invokeListFieldDefinitions,
+  invokeListFieldDefinitionsByType,
+  invokeListFieldDefinitionsByEntity,
   invokeListEntityAssets,
   invokeReadEntityAsset,
   invokeListRelationTypes,
@@ -26,7 +28,8 @@ import {
 } from "../hooks/useTauri";
 
 const mockGetFieldValues = invokeGetFieldValues as ReturnType<typeof vi.fn>;
-const mockListFieldDefinitions = invokeListFieldDefinitions as ReturnType<typeof vi.fn>;
+const mockListFieldDefinitionsByType = invokeListFieldDefinitionsByType as ReturnType<typeof vi.fn>;
+const mockListFieldDefinitionsByEntity = invokeListFieldDefinitionsByEntity as ReturnType<typeof vi.fn>;
 const mockListEntityAssets = invokeListEntityAssets as ReturnType<typeof vi.fn>;
 const mockReadEntityAsset = invokeReadEntityAsset as ReturnType<typeof vi.fn>;
 const mockListRelationTypes = invokeListRelationTypes as ReturnType<typeof vi.fn>;
@@ -66,6 +69,7 @@ const ENTITY: Entity = {
 const IMAGE_FIELD_DEF: FieldDefinition = {
   id: "fd-portrait",
   entity_type_id: "et1",
+  entity_id: null,
   name: "portrait",
   label: "Portrait",
   field_type: "image",
@@ -146,7 +150,8 @@ describe("EntityPanel", () => {
     vi.clearAllMocks();
     resetStore();
     mockGetFieldValues.mockResolvedValue([]);
-    mockListFieldDefinitions.mockResolvedValue([]);
+    mockListFieldDefinitionsByType.mockResolvedValue([]);
+    mockListFieldDefinitionsByEntity.mockResolvedValue([]);
     mockListEntityAssets.mockResolvedValue([]);
     mockListRelationTypes.mockResolvedValue([]);
     mockListOutgoing.mockResolvedValue([]);
@@ -257,5 +262,33 @@ describe("EntityPanel", () => {
       expect(mockListOutgoing).toHaveBeenCalledWith("e1");
     });
     expect(screen.queryByText("Son")).not.toBeInTheDocument();
+  });
+
+  it("merges legacy type-scoped fields with the entity's own entity-scoped fields", async () => {
+    const legacyField: FieldDefinition = { ...IMAGE_FIELD_DEF, id: "fd-legacy", entity_type_id: "et1", entity_id: null, field_type: "text", name: "legacy_prop", label: "Legacy Prop" };
+    const ownField: FieldDefinition = { ...IMAGE_FIELD_DEF, id: "fd-own", entity_type_id: null, entity_id: "e1", field_type: "text", name: "own_prop", label: "Own Prop" };
+
+    mockListFieldDefinitionsByType.mockResolvedValue([legacyField]);
+    mockListFieldDefinitionsByEntity.mockResolvedValue([ownField]);
+    mockGetFieldValues.mockResolvedValue([
+      { id: "fv1", entity_id: "e1", field_def_id: "fd-legacy", value_text: "a", value_number: null, value_boolean: null, value_date: null, value_json: null, updated_at: "2026-01-01" },
+      { id: "fv2", entity_id: "e1", field_def_id: "fd-own", value_text: "b", value_number: null, value_boolean: null, value_date: null, value_json: null, updated_at: "2026-01-01" },
+    ]);
+    mockListEntityAssets.mockResolvedValue([]);
+
+    useAppStore.setState({
+      selectedEntityId: "e1",
+      entityTypes: [ENTITY_TYPE],
+      rootEntities: [ENTITY],
+      fieldDefinitionsByType: {},
+      fieldDefinitionsByEntity: {},
+    });
+
+    render(<EntityPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Legacy Prop")).toBeInTheDocument();
+      expect(screen.getByText("Own Prop")).toBeInTheDocument();
+    });
   });
 });

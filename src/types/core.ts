@@ -82,7 +82,8 @@ export type FieldType =
 
 export interface FieldDefinition {
   id: string;
-  entity_type_id: string;
+  entity_type_id: string | null;
+  entity_id: string | null;
   name: string;
   label: string;
   field_type: FieldType;

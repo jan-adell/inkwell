@@ -30,8 +30,9 @@ export async function invokeCreateEntityFolder(projectId: string, req: { name: s
 export async function invokeUpdateEntityFolder(id: string, req: { name?: string; sort_order?: number }): Promise<EntityFolder> { return invoke<EntityFolder>("update_entity_folder", { id, req }); }
 export async function invokeDeleteEntityFolder(id: string): Promise<void> { return invoke("delete_entity_folder", { id }); }
 
-export async function invokeListFieldDefinitions(entityTypeId: string): Promise<FieldDefinition[]> { return invoke<FieldDefinition[]>("list_field_definitions", { entityTypeId }); }
-export async function invokeCreateFieldDefinition(req: { entity_type_id: string; name: string; label: string; field_type: string; options?: string; sort_order?: number }): Promise<FieldDefinition> { return invoke<FieldDefinition>("create_field_definition", { req }); }
+export async function invokeListFieldDefinitionsByType(entityTypeId: string): Promise<FieldDefinition[]> { return invoke<FieldDefinition[]>("list_field_definitions_by_type", { entityTypeId }); }
+export async function invokeListFieldDefinitionsByEntity(entityId: string): Promise<FieldDefinition[]> { return invoke<FieldDefinition[]>("list_field_definitions_by_entity", { entityId }); }
+export async function invokeCreateFieldDefinition(req: { entity_id: string; name: string; label: string; field_type: string; options?: string; sort_order?: number }): Promise<FieldDefinition> { return invoke<FieldDefinition>("create_field_definition", { req }); }
 export async function invokeDeleteFieldDefinition(id: string): Promise<void> { return invoke("delete_field_definition", { id }); }
 
 export async function invokeSetFieldValue(req: { entity_id: string; field_def_id: string; value: { type: string; value: unknown } }): Promise<FieldValue> { return invoke<FieldValue>("set_field_value", { req }); }

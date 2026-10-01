@@ -3,7 +3,8 @@ import { Search, ExternalLink } from "lucide-react";
 import { useAppStore } from "../store/appStore";
 import {
   invokeGetFieldValues,
-  invokeListFieldDefinitions,
+  invokeListFieldDefinitionsByType,
+  invokeListFieldDefinitionsByEntity,
   invokeListEntityAssets,
   invokeReadEntityAsset,
   invokeListRelationTypes,
@@ -59,6 +60,8 @@ export function EntityPanel() {
     entityTypes,
     fieldDefinitionsByType,
     setFieldDefinitionsForType,
+    fieldDefinitionsByEntity,
+    setFieldDefinitionsForEntity,
     projectId,
     relationTypes,
     setRelationTypes,
@@ -84,18 +87,24 @@ export function EntityPanel() {
     : undefined;
 
   const fieldDefs: FieldDefinition[] = entity
-    ? (fieldDefinitionsByType[entity.entity_type_id] ?? [])
+    ? [
+        ...(fieldDefinitionsByType[entity.entity_type_id] ?? []),
+        ...(fieldDefinitionsByEntity[entity.id] ?? []),
+      ]
     : [];
 
   useEffect(() => {
     if (!entity) return;
     const typeId = entity.entity_type_id;
     if (!fieldDefinitionsByType[typeId]) {
-      invokeListFieldDefinitions(typeId)
+      invokeListFieldDefinitionsByType(typeId)
         .then((defs) => setFieldDefinitionsForType(typeId, defs))
         .catch(console.error);
     }
-  }, [entity?.entity_type_id]);
+    invokeListFieldDefinitionsByEntity(entity.id)
+      .then((defs) => setFieldDefinitionsForEntity(entity.id, defs))
+      .catch(console.error);
+  }, [entity?.entity_type_id, entity?.id]);
 
   useEffect(() => {
     if (!selectedEntityId) return;
