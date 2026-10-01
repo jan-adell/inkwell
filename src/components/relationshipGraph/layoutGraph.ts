@@ -1,4 +1,4 @@
-import { forceCenter, forceLink, forceManyBody, forceSimulation, type SimulationNodeDatum } from "d3-force";
+import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, type SimulationNodeDatum } from "d3-force";
 import type { GraphEdge, GraphNode } from "./buildGraph";
 
 export interface Position {
@@ -9,6 +9,7 @@ export interface Position {
 const TICKS = 300;
 const LINK_DISTANCE = 280;
 const REPULSION = -900;
+const NODE_RADIUS = 100;
 
 export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[]): Record<string, Position> {
   const simulated: (SimulationNodeDatum & { id: string })[] = nodes.map(({ id }) => ({ id }));
@@ -17,6 +18,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[]): Record<stri
   forceSimulation(simulated)
     .force("link", forceLink(links).id((datum) => (datum as { id: string }).id).distance(LINK_DISTANCE))
     .force("charge", forceManyBody().strength(REPULSION))
+    .force("collide", forceCollide(NODE_RADIUS))
     .force("center", forceCenter(0, 0))
     .stop()
     .tick(TICKS);

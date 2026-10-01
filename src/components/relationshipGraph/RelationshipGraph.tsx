@@ -69,7 +69,7 @@ export function RelationshipGraph() {
         label: edge.label,
         style: edgeStyle(edge.color, { focused: focus?.edgeIds.has(edge.id) ?? false, dimmed }),
         ...edgeLabelProps({ dimmed }),
-        markerEnd: { type: MarkerType.ArrowClosed, color: edge.color, width: 18, height: 18 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: edge.color, width: 16, height: 16, markerUnits: "userSpaceOnUse" },
       };
     });
     return { nodes: flowNodes, edges: flowEdges };

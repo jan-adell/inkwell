@@ -148,6 +148,18 @@ describe("RelationshipGraph", () => {
     expect(useAppStore.getState().selectedEntityId).toBeNull();
   });
 
+  it("sizes arrowheads independently of the line thickness", async () => {
+    mockListRelations.mockResolvedValue([RELATION]);
+    useAppStore.setState({ selectedEntityId: "e1" });
+
+    const { container } = render(<RelationshipGraph />);
+    await screen.findByText("Kael");
+
+    const markers = container.querySelectorAll("marker");
+    expect(markers.length).toBeGreaterThan(0);
+    markers.forEach((marker) => expect(marker.getAttribute("markerUnits")).toBe("userSpaceOnUse"));
+  });
+
   it("selects the entity when its node is clicked", async () => {
     mockListRelations.mockResolvedValue([RELATION]);
 

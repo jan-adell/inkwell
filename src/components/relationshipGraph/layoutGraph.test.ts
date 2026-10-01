@@ -34,6 +34,27 @@ describe("layoutGraph", () => {
     expect(distance).toBeGreaterThanOrEqual(240);
   });
 
+  it("keeps a crowded graph free of overlapping nodes", () => {
+    const names = ["harlod", "silvia", "carl", "jenna", "jim", "forge", "mira"];
+    const links: [string, string][] = [
+      ["harlod", "forge"], ["silvia", "forge"], ["carl", "forge"], ["jenna", "forge"],
+      ["jim", "forge"], ["jenna", "harlod"], ["harlod", "carl"], ["jenna", "jim"], ["mira", "silvia"],
+    ];
+
+    const positions = layoutGraph(
+      names.map(node),
+      links.map(([source, target], index) => edge(`x${index}`, source, target)),
+    );
+
+    const ids = Object.keys(positions);
+    ids.forEach((first, index) =>
+      ids.slice(index + 1).forEach((second) => {
+        const distance = Math.hypot(positions[first].x - positions[second].x, positions[first].y - positions[second].y);
+        expect(distance, `${first} vs ${second}`).toBeGreaterThanOrEqual(180);
+      }),
+    );
+  });
+
   it("is deterministic for the same input", () => {
     const nodes = [node("a"), node("b"), node("c")];
     const edges = [edge("x", "a", "b"), edge("y", "b", "c")];
