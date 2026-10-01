@@ -7,6 +7,7 @@ import { DocumentEditor } from "../components/DocumentEditor";
 import { EntityDetail } from "../components/EntityDetail";
 import { EntityPanel } from "../components/EntityPanel";
 import { SettingsScreen } from "../components/SettingsScreen";
+import { RelationshipGraph } from "../components/relationshipGraph/RelationshipGraph";
 import { useAppStore } from "../store/appStore";
 import { invokeUpdateDocument } from "../hooks/useTauri";
 import type { Document } from "../types/core";
@@ -100,7 +101,7 @@ function Inspector() {
     if (selectedEntityId) setActiveTab("entity");
   }, [selectedEntityId]);
 
-  if (activeView === "worldbuilding") {
+  if (activeView === "worldbuilding" || activeView === "graph") {
     return (
       <aside className="flex flex-col h-full bg-ink-deep border-l border-ink-border w-64 flex-shrink-0 overflow-hidden min-h-0">
         <EntityPanel />
@@ -141,6 +142,8 @@ function Inspector() {
 
 function MainArea() {
   const { activeView, selectedDocumentId, selectedEntityId, rootDocuments, childrenMap } = useAppStore();
+
+  if (activeView === "graph") return <RelationshipGraph />;
 
   if (activeView === "worldbuilding") {
     if (selectedEntityId) {
