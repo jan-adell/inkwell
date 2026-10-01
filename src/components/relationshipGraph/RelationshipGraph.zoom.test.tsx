@@ -55,6 +55,13 @@ describe("RelationshipGraph zoom", () => {
     expect((await lastProps()).fitView).toBe(true);
   });
 
+  it("hides the React Flow attribution badge", async () => {
+    render(<RelationshipGraph />);
+
+    const options = (await lastProps()).proOptions as { hideAttribution: boolean };
+    expect(options.hideAttribution).toBe(true);
+  });
+
   it("pads the fitted view so border nodes are not cut off", async () => {
     render(<RelationshipGraph />);
 

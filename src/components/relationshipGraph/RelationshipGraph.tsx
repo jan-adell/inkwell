@@ -15,6 +15,7 @@ import { layoutGraph } from "./layoutGraph";
 
 const EDGE_TYPES = { floating: FloatingEdge };
 const MIN_ZOOM = 0.05;
+const PRO_OPTIONS = { hideAttribution: true };
 const FIT_VIEW_OPTIONS = { padding: 0.2 };
 
 export function RelationshipGraph() {
@@ -107,6 +108,7 @@ export function RelationshipGraph() {
         fitView
         fitViewOptions={FIT_VIEW_OPTIONS}
         minZoom={MIN_ZOOM}
+        proOptions={PRO_OPTIONS}
         colorMode="dark"
         onNodeClick={(_, node) => setSelectedEntityId(node.id)}
         onPaneClick={() => setSelectedEntityId(null)}
