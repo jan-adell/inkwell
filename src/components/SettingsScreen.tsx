@@ -11,7 +11,6 @@ const ALL_SECTIONS: { id: SettingsSection; label: string; icon: typeof BarChart3
   { id: "entity-types", label: "Entity Types", icon: Shapes },
   { id: "appearance", label: "Appearance", icon: Palette },
 ];
-];
 
 interface Props {
   onBack: () => void;
@@ -51,7 +50,6 @@ export function SettingsScreen({ onBack, sections = ["statistics", "appearance"]
         </nav>
       </aside>
       <main className="flex-1 overflow-y-auto p-6">
-        {activeSection === "statistics" && <StatisticsPanel />}
         {activeSection === "statistics" && <StatisticsPanel />}
         {activeSection === "entity-types" && <EntityTypeEditor />}
         {activeSection === "appearance" && <AppearanceSettings />}
