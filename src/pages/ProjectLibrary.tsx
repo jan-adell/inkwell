@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookOpen, Plus, FolderOpen, Clock, Trash2, Download } from "lucide-react";
+import { BookOpen, Plus, FolderOpen, Clock, Trash2, Settings } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store/appStore";
@@ -12,6 +12,7 @@ import {
 } from "../hooks/useTauri";
 import type { KnownProject } from "../types/core";
 import { ExportMenu } from "../components/ExportMenu";
+import { SettingsScreen } from "../components/SettingsScreen";
 
 type ExportChoice = "inkwell" | ExportFormat;
 
@@ -40,6 +41,7 @@ export function ProjectLibrary({ onOpenProject, onNewProject }: Props) {
 
   const [appVersion, setAppVersion] = useState("");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => {});
@@ -103,15 +105,28 @@ export function ProjectLibrary({ onOpenProject, onNewProject }: Props) {
             Write · Build · Imagine
           </p>
         </div>
-        <button
-          onClick={onNewProject}
-          className="flex items-center gap-2 px-4 py-2 rounded bg-gold text-ink-void text-sm font-mono font-semibold hover:bg-gold-bright transition-colors"
-        >
-          <Plus size={14} />
-          New project
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onNewProject}
+            className="flex items-center gap-2 px-4 py-2 rounded bg-gold text-ink-void text-sm font-mono font-semibold hover:bg-gold-bright transition-colors"
+          >
+            <Plus size={14} />
+            New project
+          </button>
+          <button
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+            className="p-2 rounded text-ivory-ghost hover:text-ivory hover:bg-ink-muted transition-colors"
+          >
+            <Settings size={16} />
+          </button>
+        </div>
       </header>
 
+      {showSettings ? (
+        <SettingsScreen onBack={() => setShowSettings(false)} sections={["appearance"]} />
+      ) : (
+      <>
       {/* Body */}
       <main className="flex-1 px-10 py-10 max-w-3xl w-full mx-auto">
         {actionError && (
@@ -216,6 +231,8 @@ export function ProjectLibrary({ onOpenProject, onNewProject }: Props) {
           <p className="text-xs text-ivory-ghost font-mono">v{appVersion}</p>
         )}
       </footer>
+      </>
+      )}
     </div>
   );
 }
