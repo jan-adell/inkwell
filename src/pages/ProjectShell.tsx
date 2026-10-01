@@ -177,5 +177,5 @@ function Topbar({ onGoToLibrary, onOpenSettings }: { onGoToLibrary: () => void; 
 
 export function ProjectShell({ onGoToLibrary }: { onGoToLibrary: () => void }) {
   const [showSettings, setShowSettings] = useState(false);
-  return <div className="flex flex-col h-full bg-ink-void"><Topbar onGoToLibrary={onGoToLibrary} onOpenSettings={() => setShowSettings(true)} />{showSettings ? <SettingsScreen onBack={() => setShowSettings(false)} /> : <div className="flex flex-1 min-h-0"><div className="w-56 flex-shrink-0"><Sidebar /></div><MainArea /><Inspector /></div>}<CreateEntityModal /><CreateDocumentModal /></div>;
+  return <div className="flex flex-col h-full bg-ink-void"><Topbar onGoToLibrary={onGoToLibrary} onOpenSettings={() => setShowSettings(true)} />{showSettings ? <SettingsScreen onBack={() => setShowSettings(false)} sections={["statistics", "appearance"]} /> : <div className="flex flex-1 min-h-0"><div className="w-56 flex-shrink-0"><Sidebar /></div><MainArea /><Inspector /></div>}<CreateEntityModal /><CreateDocumentModal /></div>;
 }
