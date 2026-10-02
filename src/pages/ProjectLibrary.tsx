@@ -124,7 +124,7 @@ export function ProjectLibrary({ onOpenProject, onNewProject }: Props) {
       </header>
 
       {showSettings ? (
-        <SettingsScreen onBack={() => setShowSettings(false)} sections={["appearance"]} />
+        <SettingsScreen onBack={() => setShowSettings(false)} sections={["entity-types", "appearance"]} />
       ) : (
       <>
       {/* Body */}

@@ -21,6 +21,7 @@ describe("ProjectLibrary settings", () => {
     await user.click(screen.getByTitle("Settings"));
     expect(screen.getByRole("button", { name: "Appearance" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Statistics" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Entity Types" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /back/i }));
     expect(screen.queryByRole("button", { name: "Appearance" })).not.toBeInTheDocument();
