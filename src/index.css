@@ -236,45 +236,6 @@
   min-height: 100%;
 }
 
-.page-size-A5 {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(210mm - 1px),
-    #111118 calc(210mm - 1px),
-    #111118 calc(210mm + 23px),
-    transparent calc(210mm + 23px),
-    transparent 210mm
-  );
-}
-
-.page-size-A4 {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(297mm - 1px),
-    #111118 calc(297mm - 1px),
-    #111118 calc(297mm + 23px),
-    transparent calc(297mm + 23px),
-    transparent 297mm
-  );
-}
-
-.page-size-A3 {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(420mm - 1px),
-    #111118 calc(420mm - 1px),
-    #111118 calc(420mm + 23px),
-    transparent calc(420mm + 23px),
-    transparent 420mm
-  );
-}
-
-.page-size-unlimited {
-  background-image: none;
-}
 /* Entity mention links */
 .entity-link {
   color: var(--color-accent);

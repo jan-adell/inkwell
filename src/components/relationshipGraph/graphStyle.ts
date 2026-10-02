@@ -2,9 +2,9 @@ import type { CSSProperties } from "react";
 
 export const DIMMED_OPACITY = 0.2;
 
-const TEXT_COLOR = "#f3efe6";
-const SURFACE_COLOR = "#141414";
-const SELECTION_COLOR = "#c9a84c";
+const TEXT_COLOR = "var(--color-text)";
+const SURFACE_COLOR = "var(--color-surface)";
+const SELECTION_COLOR = "var(--color-accent)";
 
 interface NodeState {
   selected: boolean;

@@ -32,6 +32,16 @@ const STATUS_COLORS: Record<Document["status"], string> = {
   final: "text-emerald-400",
 };
 
+const STATUS_ORDER: Document["status"][] = ["idea", "draft", "revision", "final"];
+
+export function effectiveStatus(doc: Document, childrenMap: Record<string, Document[]>): Document["status"] {
+  const children = doc.node_type === "folder" ? childrenMap[doc.id] : undefined;
+  if (!children || children.length === 0) return doc.status;
+  return children
+    .map((child) => effectiveStatus(child, childrenMap))
+    .reduce((least, status) => (STATUS_ORDER.indexOf(status) < STATUS_ORDER.indexOf(least) ? status : least));
+}
+
 const NODE_ICON: Record<string, React.ElementType> = {
   scene: Feather,
   note: FileText,
@@ -107,6 +117,7 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
   const isFolder = doc.node_type === "folder";
   const children = childrenMap[doc.id] ?? null;
   const isSelected = selectedDocumentId === doc.id;
+  const status = effectiveStatus(doc, childrenMap);
   const Icon = NODE_ICON[doc.node_type] ?? FileText;
 
   useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
@@ -279,8 +290,8 @@ function DocNode({ doc, depth = 0 }: { doc: Document; depth?: number }) {
 
         {!editing && (
           <>
-            <span className={`flex-shrink-0 text-[10px] font-mono ${STATUS_COLORS[doc.status]}`} title={`Estado: ${STATUS_LABELS[doc.status]}`}>
-              {STATUS_LABELS[doc.status]}
+            <span className={`flex-shrink-0 text-[10px] font-mono ${STATUS_COLORS[status]}`} title={`Estado: ${STATUS_LABELS[status]}`}>
+              {STATUS_LABELS[status]}
             </span>
             <button
               onClick={handleDelete}

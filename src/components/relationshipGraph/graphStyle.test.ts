@@ -10,6 +10,14 @@ describe("nodeStyle", () => {
     expect(style.opacity).toBe(1);
   });
 
+  it("takes surface, text and selection colors from the app theme", () => {
+    const style = nodeStyle("#ff0000", { selected: true, dimmed: false });
+
+    expect(style.background).toContain("var(--color-surface)");
+    expect(style.color).toBe("var(--color-text)");
+    expect(style.boxShadow).toContain("var(--color-accent)");
+  });
+
   it("fades a dimmed node", () => {
     expect(nodeStyle("#ff0000", { selected: false, dimmed: true }).opacity).toBe(DIMMED_OPACITY);
   });
@@ -51,6 +59,13 @@ describe("edgeLabelProps", () => {
     expect(props.labelBgStyle.fillOpacity).toBeGreaterThan(0.8);
     expect(props.labelBgPadding).toEqual([6, 4]);
     expect(Number(props.labelStyle.fontSize)).toBeGreaterThanOrEqual(12);
+  });
+
+  it("takes label colors from the app theme", () => {
+    const props = edgeLabelProps({ dimmed: false });
+
+    expect(props.labelStyle.fill).toBe("var(--color-text)");
+    expect(props.labelBgStyle.fill).toBe("var(--color-surface)");
   });
 
   it("fades the label together with a dimmed edge", () => {

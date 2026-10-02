@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findEntityContext, getMergedRootItems } from "./Sidebar";
-import type { Entity, EntityFolder } from "../types/core";
+import { effectiveStatus, findEntityContext, getMergedRootItems } from "./Sidebar";
+import type { Document, Entity, EntityFolder } from "../types/core";
 
 const entity = (id: string, name: string, sort_order = 0, folder_id: string | null = null): Entity => ({
   id,
@@ -108,5 +108,52 @@ describe("getMergedRootItems", () => {
     const merged = getMergedRootItems(state);
     expect(merged).toHaveLength(1);
     expect(merged[0]).toMatchObject({ kind: "folder", id: "f1" });
+  });
+});
+
+const doc = (id: string, status: Document["status"], node_type: Document["node_type"] = "scene"): Document => ({
+  id,
+  project_id: "proj-1",
+  parent_id: null,
+  node_type,
+  title: id,
+  synopsis: null,
+  status,
+  word_count: 0,
+  sort_order: 0,
+  is_included: true,
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+  deleted_at: null,
+} as Document);
+
+describe("effectiveStatus", () => {
+  it("keeps the own status of a document", () => {
+    expect(effectiveStatus(doc("d1", "draft"), {})).toBe("draft");
+  });
+
+  it("gives a folder the least final status among its children", () => {
+    const folder = doc("f1", "final", "folder");
+    const children = { f1: [doc("a", "final"), doc("b", "revision"), doc("c", "draft")] };
+    expect(effectiveStatus(folder, children)).toBe("draft");
+  });
+
+  it("prefers idea over everything else", () => {
+    const folder = doc("f1", "final", "folder");
+    const children = { f1: [doc("a", "final"), doc("b", "idea")] };
+    expect(effectiveStatus(folder, children)).toBe("idea");
+  });
+
+  it("looks through nested folders", () => {
+    const folder = doc("f1", "final", "folder");
+    const inner = doc("f2", "final", "folder");
+    const children = { f1: [doc("a", "final"), inner], f2: [doc("b", "revision")] };
+    expect(effectiveStatus(folder, children)).toBe("revision");
+  });
+
+  it("falls back to its own status when children are unknown or empty", () => {
+    const folder = doc("f1", "draft", "folder");
+    expect(effectiveStatus(folder, {})).toBe("draft");
+    expect(effectiveStatus(folder, { f1: [] })).toBe("draft");
   });
 });
