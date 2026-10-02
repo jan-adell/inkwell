@@ -109,7 +109,6 @@ export function RelationshipGraph() {
         fitViewOptions={FIT_VIEW_OPTIONS}
         minZoom={MIN_ZOOM}
         proOptions={PRO_OPTIONS}
-        colorMode="dark"
         onNodeClick={(_, node) => setSelectedEntityId(node.id)}
         onPaneClick={() => setSelectedEntityId(null)}
       >
