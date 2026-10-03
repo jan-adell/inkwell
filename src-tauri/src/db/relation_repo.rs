@@ -194,7 +194,6 @@ mod tests {
 
     struct Fixture {
         pid: String,
-        etid: String,
         e1: String,
         e2: String,
         rtid: String,
@@ -213,13 +212,7 @@ mod tests {
         conn.execute("INSERT INTO entities(id,project_id,entity_type_id,name,visibility,sort_order,created_at,updated_at) VALUES(?1,?2,?3,'Valthera','private',0,'2026-01-01','2026-01-01')", params![e2, pid, etid]).unwrap();
         conn.execute("INSERT INTO relation_types(id,project_id,name,label,is_system,created_at) VALUES(?1,?2,'vive_en','Vive en',0,'2026-01-01')", params![rtid, pid]).unwrap();
 
-        Fixture {
-            pid,
-            etid,
-            e1,
-            e2,
-            rtid,
-        }
+        Fixture { pid, e1, e2, rtid }
     }
 
     #[test]
